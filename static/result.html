@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配当金シミュレーター — 結果</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
+      background: #f0f6ff;
+      color: #2d3748;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.2rem; color: #1a202c; }
+    .subtitle { color: #718096; font-size: 0.88rem; margin-bottom: 2rem; }
+
+    /* サマリーカード */
+    .summary-group { margin-bottom: 1.5rem; }
+    .summary-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #90cdf4;
+      margin-bottom: 0.5rem; padding-left: 0.25rem;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 0.75rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.1rem 1.3rem;
+      box-shadow: 0 1px 6px rgba(66,153,225,0.10);
+      border-left: 3px solid transparent;
+    }
+    .card.gross { border-left-color: #63b3ed; }
+    .card.net   { border-left-color: #48bb78; }
+    .card.plain { border-left-color: #bee3f8; }
+    .card .label { font-size: 0.73rem; color: #718096; font-weight: 500; margin-bottom: 0.3rem; }
+    .card .value { font-size: 1.35rem; font-weight: 700; color: #1a202c; }
+    .card .value.blue  { color: #2b6cb0; }
+    .card .value.green { color: #276749; }
+    .card .sub { font-size: 0.72rem; color: #a0aec0; margin-top: 0.2rem; }
+
+    /* グラフエリア */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 680px) { .charts-row { grid-template-columns: 1fr; } }
+    .chart-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.25rem 1.4rem 1.5rem;
+      box-shadow: 0 1px 6px rgba(66,153,225,0.10);
+    }
+    .chart-card h3 {
+      font-size: 0.85rem; font-weight: 700; color: #2b6cb0;
+      margin-bottom: 1rem; letter-spacing: 0.02em;
+    }
+    .chart-wrap { position: relative; }
+
+    /* テーブル */
+    .table-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(66,153,225,0.10);
+      overflow-x: auto;
+      margin-bottom: 1.5rem;
+    }
+    .table-card h2 {
+      font-size: 0.9rem; font-weight: 600;
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid #ebf8ff;
+      color: #2b6cb0;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    th {
+      text-align: left; padding: 0.6rem 0.9rem;
+      background: #ebf8ff; color: #2c5282;
+      font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #bee3f8;
+      white-space: nowrap;
+    }
+    td { padding: 0.65rem 0.9rem; border-bottom: 1px solid #f0f6ff; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f0f6ff; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .badge-none { background:#fed7d7; color:#c53030; border-radius:4px; font-size:0.68rem; padding:0.1rem 0.4rem; }
+    .badge-ok   { background:#c6f6d5; color:#276749; border-radius:4px; font-size:0.68rem; padding:0.1rem 0.4rem; }
+    .badge-jp   { background:#ebf8ff; color:#2b6cb0; border-radius:4px; font-size:0.65rem; padding:0.1rem 0.35rem; }
+    .badge-us   { background:#fefcbf; color:#744210; border-radius:4px; font-size:0.65rem; padding:0.1rem 0.35rem; }
+    .net-col { background: #f0fff4; }
+    tr:hover .net-col { background: #e6ffed; }
+
+    /* 注記 */
+    .note {
+      font-size: 0.78rem; color: #718096;
+      background: #fff; border-radius: 8px;
+      padding: 0.8rem 1.1rem; margin-bottom: 1.5rem;
+      border: 1px solid #bee3f8; line-height: 1.7;
+    }
+    .note strong { color: #2b6cb0; }
+
+    .empty {
+      background: #fff; border-radius: 12px;
+      padding: 3rem; text-align: center;
+      color: #718096; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .btn-back {
+      display: inline-block; padding: 0.5rem 1.5rem;
+      background: #3182ce; color: #fff; border-radius: 8px;
+      font-size: 0.88rem; font-weight: 600;
+      text-decoration: none; margin-top: 1rem;
+    }
+    .btn-back:hover { background: #2b6cb0; }
+
+    /* 月次/年次 トグル */
+    .chart-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .chart-card-header h3 { margin-bottom: 0; }
+    .toggle-group {
+      display: flex; border: 1.5px solid #bee3f8; border-radius: 6px;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .toggle-btn {
+      background: #fff; border: none; cursor: pointer;
+      font-size: 0.75rem; font-weight: 600; color: #718096;
+      padding: 0.25rem 0.65rem; transition: background 0.15s, color 0.15s;
+    }
+    .toggle-btn:first-child { border-right: 1px solid #bee3f8; }
+    .toggle-btn.active { background: #3182ce; color: #fff; }
+
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>配当金シミュレーター</h1>
+  <p class="subtitle">マネーフォワードから取得したデータをもとに算出しています</p>
+  <div id="app"><div class="empty">データを読み込み中…</div></div>
+</div>
+
+<script>
+  function fmt(n) {
+    return '¥' + Math.round(n).toLocaleString('ja-JP');
+  }
+
+  // ── カラーパレット（青・緑・白系）──────────────────────────
+  const PALETTE = [
+    '#4299e1','#48bb78','#63b3ed','#68d391',
+    '#90cdf4','#9ae6b4','#3182ce','#38a169',
+    '#bee3f8','#c6f6d5','#2b6cb0','#276749',
+    '#76e4f7','#b2f5ea','#2c7a7b','#285e61',
+  ];
+
+  function shortName(name, code) {
+    if (!name || name === code) return code || '—';
+    return name.length > 12 ? name.slice(0, 11) + '…' : name;
+  }
+
+  function renderCharts(data) {
+    // ── ① ポートフォリオ内訳（ドーナツ） ─────────────────────
+    const sorted = [...data.holdings].sort((a, b) => b.value - a.value);
+    const TOP = 10;
+    const topH   = sorted.slice(0, TOP);
+    const others = sorted.slice(TOP);
+    const othersVal = others.reduce((s, h) => s + h.value, 0);
+
+    const donutLabels = topH.map(h => shortName(h.name, h.code));
+    const donutData   = topH.map(h => h.value);
+    if (othersVal > 0) { donutLabels.push('その他'); donutData.push(othersVal); }
+
+    const donutColors = donutLabels.map((_, i) =>
+      i < donutLabels.length - 1 || othersVal === 0
+        ? PALETTE[i % PALETTE.length]
+        : '#e2e8f0'
+    );
+
+    new Chart(document.getElementById('chartDonut'), {
+      type: 'doughnut',
+      data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
+      options: {
+        cutout: '62%',
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 10, color: '#4a5568' } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = (ctx.parsed / total * 100).toFixed(1);
+                return ` ${fmt(ctx.parsed)}  (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // ── ② 配当貢献度ランキング（横棒） ────────────────────────
+    const withDiv = [...data.holdings]
+      .filter(h => h.monthly_dividend_net != null && h.monthly_dividend_net > 0)
+      .sort((a, b) => b.monthly_dividend_net - a.monthly_dividend_net)
+      .slice(0, 15);
+
+    const barLabels = withDiv.map(h => shortName(h.name, h.code));
+    const barColors = withDiv.map(h =>
+      h.ticker && h.ticker.endsWith('.T') ? '#63b3ed' : '#68d391'
+    );
+
+    const barDatasets = {
+      monthly: {
+        gross: withDiv.map(h => h.monthly_dividend),
+        net:   withDiv.map(h => h.monthly_dividend_net),
+      },
+      annual: {
+        gross: withDiv.map(h => h.monthly_dividend * 12),
+        net:   withDiv.map(h => h.monthly_dividend_net * 12),
+      }
+    };
+
+    const barWrap = document.getElementById('chartBar').parentElement;
+    barWrap.style.height = (withDiv.length * 36 + 70) + 'px';
+
+    window._barChart = new Chart(document.getElementById('chartBar'), {
+      type: 'bar',
+      data: {
+        labels: barLabels,
+        datasets: [
+          {
+            label: '税引き前',
+            data: barDatasets.monthly.gross,
+            backgroundColor: barColors.map(c => c + '55'),
+            borderColor: barColors,
+            borderWidth: 1.5,
+            borderRadius: 3,
+          },
+          {
+            label: '税引き後',
+            data: barDatasets.monthly.net,
+            backgroundColor: barColors,
+            borderColor: barColors,
+            borderWidth: 0,
+            borderRadius: 3,
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, color: '#4a5568' } },
+          tooltip: {
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.x)}` }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#ebf8ff' },
+            ticks: { callback: v => '¥' + v.toLocaleString('ja-JP'), font: { size: 10 }, color: '#718096' }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { font: { size: 11 }, color: '#4a5568' }
+          }
+        }
+      }
+    });
+
+    window._barDatasets = barDatasets;
+  }
+
+  function switchBarMode(mode) {
+    const chart = window._barChart;
+    const ds    = window._barDatasets;
+    if (!chart || !ds) return;
+
+    chart.data.datasets[0].data = ds[mode].gross;
+    chart.data.datasets[1].data = ds[mode].net;
+    chart.update();
+
+    document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
+    document.getElementById('btnAnnual').classList.toggle('active', mode === 'annual');
+  }
+
+  function render(data) {
+    const withYield = data.holdings.filter(h => h.div_yield);
+    const avgY = withYield.length
+      ? (withYield.reduce((s, h) => s + h.div_yield, 0) / withYield.length).toFixed(2)
+      : null;
+
+    const rows = data.holdings.map(h => {
+      const isJP = h.ticker && h.ticker.endsWith('.T');
+      const taxBadge = h.monthly_dividend != null
+        ? (isJP ? `<span class="badge-jp">JP ${h.tax_rate}%</span>`
+                : `<span class="badge-us">US ${h.tax_rate}%</span>`)
+        : '';
+      return `
+        <tr>
+          <td>${h.code || '—'}</td>
+          <td>${h.name}</td>
+          <td class="num">${fmt(h.value)}</td>
+          <td class="num">${h.div_yield != null
+            ? `<span class="badge-ok">${h.div_yield} %</span>`
+            : '<span class="badge-none">取得不可</span>'}</td>
+          <td class="num">${h.monthly_dividend != null ? fmt(h.monthly_dividend) : '—'}</td>
+          <td class="num net-col">${h.monthly_dividend_net != null ? fmt(h.monthly_dividend_net) : '—'}</td>
+          <td>${taxBadge}</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('app').innerHTML = `
+      <div class="summary-group">
+        <div class="summary-label">税引き前（概算）</div>
+        <div class="summary">
+          <div class="card plain">
+            <div class="label">総評価額</div>
+            <div class="value">${fmt(data.total_value)}</div>
+          </div>
+          <div class="card gross">
+            <div class="label">月次配当（税引き前）</div>
+            <div class="value blue">${fmt(data.total_monthly_dividend)}</div>
+            <div class="sub">年間 ${fmt(data.total_annual_dividend)}</div>
+          </div>
+          <div class="card plain">
+            <div class="label">平均配当利回り</div>
+            <div class="value">${avgY ? avgY + ' %' : '—'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="summary-group">
+        <div class="summary-label">税引き後（概算）</div>
+        <div class="summary">
+          <div class="card net">
+            <div class="label">月次配当（税引き後）</div>
+            <div class="value green">${fmt(data.total_monthly_dividend_net)}</div>
+          </div>
+          <div class="card net">
+            <div class="label">年次配当（税引き後）</div>
+            <div class="value green">${fmt(data.total_annual_dividend_net)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <h3>📊 ポートフォリオ内訳（評価額）</h3>
+          <div class="chart-wrap"><canvas id="chartDonut"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>📈 配当貢献度ランキング（税引き後）</h3>
+            <div class="toggle-group">
+              <button class="toggle-btn active" id="btnMonthly" onclick="switchBarMode('monthly')">月次</button>
+              <button class="toggle-btn" id="btnAnnual" onclick="switchBarMode('annual')">年次</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chartBar"></canvas></div>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>税率の前提：</strong>
+        日本株・国内ETF = 20.315%（所得税15.315% + 住民税5%）／
+        米国株・米ETF = 28.28%（米国源泉10% + 国内20.315%・外国税額控除なし最大値）<br>
+        ※ NISA口座保有分、外国税額控除の適用、実際の権利日・支払日は考慮していません。
+      </div>
+
+      <div class="table-card">
+        <h2>保有銘柄 一覧（${data.holdings.length} 銘柄）</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>コード</th>
+              <th>銘柄名</th>
+              <th class="num">評価額</th>
+              <th class="num">配当利回り</th>
+              <th class="num">月次配当（税前）</th>
+              <th class="num net-col">月次配当（税後）</th>
+              <th>税率</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <a class="btn-back" href="/">← CSVアップロード画面に戻る</a>
+    `;
+
+    // DOM挿入後にChartを描画
+    renderCharts(data);
+  }
+
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('s');
+
+  if (sid) {
+    fetch(`/api/session/${sid}`)
+      .then(r => {
+        if (!r.ok) throw new Error('セッションが見つかりません。拡張機能から再取得してください。');
+        return r.json();
+      })
+      .then(data => render(data))
+      .catch(e => {
+        document.getElementById('app').innerHTML =
+          `<div class="empty">${e.message}<br><a class="btn-back" href="/">← トップに戻る</a></div>`;
+      });
+  } else {
+    document.getElementById('app').innerHTML = `
+      <div class="empty">
+        表示するデータがありません。<br>
+        ブラウザ拡張からデータを取得してください。
+        <br><a class="btn-back" href="/">← トップに戻る</a>
+      </div>`;
+  }
+</script>
+</body>
+</html>

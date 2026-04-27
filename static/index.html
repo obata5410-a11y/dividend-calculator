@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配当金シミュレーター</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 960px; margin: 0 auto; }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      color: #1a202c;
+    }
+    .subtitle { color: #718096; font-size: 0.9rem; margin-bottom: 2rem; }
+
+    /* Upload area */
+    .upload-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      margin-bottom: 1.5rem;
+    }
+    .upload-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #4a5568; }
+
+    .drop-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #4299e1;
+      background: #ebf8ff;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .drop-zone p { color: #718096; font-size: 0.9rem; }
+    .drop-zone .file-name { color: #2b6cb0; font-weight: 600; margin-top: 0.5rem; font-size: 0.95rem; }
+
+    .btn {
+      display: inline-block;
+      margin-top: 1.25rem;
+      padding: 0.6rem 2rem;
+      background: #3182ce;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #2b6cb0; }
+    .btn:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    /* Spinner */
+    .spinner-wrap { display: none; margin-top: 1rem; align-items: center; gap: 0.75rem; color: #4a5568; }
+    .spinner-wrap.visible { display: flex; }
+    .spinner {
+      width: 22px; height: 22px;
+      border: 3px solid #bee3f8;
+      border-top-color: #3182ce;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Summary cards */
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card .label { font-size: 0.78rem; color: #718096; font-weight: 500; margin-bottom: 0.3rem; }
+    .card .value { font-size: 1.5rem; font-weight: 700; color: #1a202c; }
+    .card .value.accent { color: #2f855a; }
+
+    /* Table */
+    .table-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .table-card h2 { font-size: 0.95rem; font-weight: 600; padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; color: #4a5568; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th {
+      text-align: left;
+      padding: 0.7rem 1rem;
+      background: #f7fafc;
+      color: #718096;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid #f0f4f8; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f7fafc; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .badge-none {
+      display: inline-block;
+      background: #fed7d7;
+      color: #c53030;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      padding: 0.1rem 0.4rem;
+    }
+    .badge-ok {
+      display: inline-block;
+      background: #c6f6d5;
+      color: #276749;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      padding: 0.1rem 0.4rem;
+    }
+
+    /* Error */
+    .error-box {
+      display: none;
+      background: #fff5f5;
+      border: 1px solid #feb2b2;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      color: #c53030;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .error-box.visible { display: block; }
+
+    #results { display: none; }
+    #results.visible { display: block; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>配当金シミュレーター</h1>
+  <p class="subtitle">マネーフォワードの保有証券CSVをアップロードして、月次・年次の配当額を試算します</p>
+
+  <div class="upload-card">
+    <h2>STEP 1 — CSVファイルを選択</h2>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".csv">
+      <div class="icon">📄</div>
+      <p>クリックまたはドラッグ＆ドロップ</p>
+      <p>マネーフォワード「保有証券」のCSVファイル</p>
+      <div class="file-name" id="fileName"></div>
+    </div>
+    <br>
+    <button class="btn" id="calcBtn" disabled>配当額を算出する</button>
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner"></div>
+      <span>yFinanceから配当データを取得中… しばらくお待ちください</span>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div id="results">
+    <div class="summary">
+      <div class="card">
+        <div class="label">総評価額</div>
+        <div class="value" id="sumValue">—</div>
+      </div>
+      <div class="card">
+        <div class="label">月次配当（概算）</div>
+        <div class="value accent" id="sumMonthly">—</div>
+      </div>
+      <div class="card">
+        <div class="label">年間配当（概算）</div>
+        <div class="value accent" id="sumAnnual">—</div>
+      </div>
+      <div class="card">
+        <div class="label">平均配当利回り</div>
+        <div class="value" id="avgYield">—</div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h2>保有銘柄 一覧</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>銘柄コード</th>
+            <th>銘柄名</th>
+            <th class="num">評価額</th>
+            <th class="num">配当利回り</th>
+            <th class="num">月次配当（概算）</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const dropZone  = document.getElementById('dropZone');
+  const fileName  = document.getElementById('fileName');
+  const calcBtn   = document.getElementById('calcBtn');
+  const spinner   = document.getElementById('spinner');
+  const errorBox  = document.getElementById('errorBox');
+  const results   = document.getElementById('results');
+
+  let selectedFile = null;
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) selectFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) selectFile(e.dataTransfer.files[0]);
+  });
+
+  function selectFile(file) {
+    selectedFile = file;
+    fileName.textContent = file.name;
+    calcBtn.disabled = false;
+  }
+
+  function fmt(n) {
+    return '¥' + Math.round(n).toLocaleString('ja-JP');
+  }
+
+  calcBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    calcBtn.disabled = true;
+    spinner.classList.add('visible');
+    errorBox.classList.remove('visible');
+    results.classList.remove('visible');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await fetch('/api/calculate', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'サーバーエラーが発生しました');
+      }
+
+      // サマリー
+      document.getElementById('sumValue').textContent   = fmt(data.total_value);
+      document.getElementById('sumMonthly').textContent = fmt(data.total_monthly_dividend);
+      document.getElementById('sumAnnual').textContent  = fmt(data.total_annual_dividend);
+
+      // 平均利回り計算
+      const withYield = data.holdings.filter(h => h.div_yield);
+      const avgY = withYield.length
+        ? (withYield.reduce((s, h) => s + h.div_yield, 0) / withYield.length).toFixed(2)
+        : null;
+      document.getElementById('avgYield').textContent = avgY ? avgY + ' %' : '—';
+
+      // テーブル
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      for (const h of data.holdings) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${h.code} <span style="color:#a0aec0;font-size:0.78rem">${h.ticker !== h.code + '.T' && h.ticker !== h.code ? h.ticker : ''}</span></td>
+          <td>${h.name}</td>
+          <td class="num">${fmt(h.value)}</td>
+          <td class="num">${h.div_yield != null
+            ? `<span class="badge-ok">${h.div_yield} %</span>`
+            : '<span class="badge-none">取得不可</span>'}</td>
+          <td class="num">${h.monthly_dividend != null ? fmt(h.monthly_dividend) : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      results.classList.add('visible');
+    } catch (err) {
+      errorBox.textContent = 'エラー: ' + err.message;
+      errorBox.classList.add('visible');
+    } finally {
+      spinner.classList.remove('visible');
+      calcBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

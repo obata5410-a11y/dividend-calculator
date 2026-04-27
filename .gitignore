@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+# Chrome拡張・ネイティブホスト関連（サーバー不要）
+extension/
+native_host.py
+native_host_launcher.bat
+native_host_manifest.json
+install_native_host.bat
+install_native_host.ps1
+install_native_host.py
+# Windows用起動スクリプト（サーバー不要）
+start.bat
+stop.bat
