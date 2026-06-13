@@ -122,10 +122,18 @@ def _fetch_us_ticker_data(ticker: str) -> dict:
 
 
 def fetch_ticker_data(ticker: str) -> dict:
-    """日本株（4桁.T）はminkabu、それ以外はyfinanceを使う。"""
+    """日本株（4桁.T）はminkabu優先、配当利回り未取得時はYahoo Finance v8にフォールバック。"""
     m = re.fullmatch(r"(\d{4})\.T", ticker)
     if m:
-        return _fetch_jp_ticker_data(m.group(1))
+        result = _fetch_jp_ticker_data(m.group(1))
+        if result.get("div_yield") is None:
+            # 配当未発表などでminkabuが---を返す場合はYahoo Finance v8で補完
+            yf = _fetch_us_ticker_data(ticker)
+            if yf.get("div_yield") is not None:
+                result["div_yield"] = yf["div_yield"]
+            if result.get("name") is None and yf.get("name"):
+                result["name"] = yf["name"]
+        return result
     return _fetch_us_ticker_data(ticker)
 
 
