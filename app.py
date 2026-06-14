@@ -180,8 +180,9 @@ def load_nisa_codes() -> set[str]:
     try:
         with open(_NISA_FILE, encoding="utf-8") as f:
             for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
+                # 行頭コメント・空行・インラインコメント（コード横の # 以降）を除去
+                line = line.split("#", 1)[0].strip()
+                if not line:
                     continue
                 codes.add(_normalize_nisa_code(line))
     except OSError:
