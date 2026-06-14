@@ -3,4 +3,8 @@ services:
     build: .
     ports:
       - "8000:8000"
+    volumes:
+      # NISA対象銘柄リストをホスト側ファイルにバインド。
+      # 編集すれば再起動・再ビルドなしで反映される（リクエストごとに読み込むため）。
+      - ./nisa_codes.txt:/app/nisa_codes.txt
     restart: unless-stopped

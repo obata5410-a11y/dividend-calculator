@@ -97,6 +97,7 @@
     .badge-ok   { background:#c6f6d5; color:#276749; border-radius:4px; font-size:0.68rem; padding:0.1rem 0.4rem; }
     .badge-jp   { background:#ebf8ff; color:#2b6cb0; border-radius:4px; font-size:0.65rem; padding:0.1rem 0.35rem; }
     .badge-us   { background:#fefcbf; color:#744210; border-radius:4px; font-size:0.65rem; padding:0.1rem 0.35rem; }
+    .badge-nisa { background:#c6f6d5; color:#22543d; border-radius:4px; font-size:0.65rem; padding:0.1rem 0.35rem; font-weight:700; }
     .net-col { background: #f0fff4; }
     tr:hover .net-col { background: #e6ffed; }
 
@@ -301,8 +302,9 @@
     const rows = data.holdings.map(h => {
       const isJP = h.ticker && h.ticker.endsWith('.T');
       const taxBadge = h.monthly_dividend != null
-        ? (isJP ? `<span class="badge-jp">JP ${h.tax_rate}%</span>`
-                : `<span class="badge-us">US ${h.tax_rate}%</span>`)
+        ? (h.nisa ? `<span class="badge-nisa">NISA 非課税</span>`
+                  : isJP ? `<span class="badge-jp">JP ${h.tax_rate}%</span>`
+                         : `<span class="badge-us">US ${h.tax_rate}%</span>`)
         : '';
       return `
         <tr>
@@ -372,7 +374,8 @@
         <strong>税率の前提：</strong>
         日本株・国内ETF = 20.315%（所得税15.315% + 住民税5%）／
         米国株・米ETF = 28.28%（米国源泉10% + 国内20.315%・外国税額控除なし最大値）<br>
-        ※ NISA口座保有分、外国税額控除の適用、実際の権利日・支払日は考慮していません。
+        NISA対象に指定した銘柄（<strong>nisa_codes.txt</strong>に記載）は非課税（0%）で計算しています。<br>
+        ※ 外国税額控除の適用、実際の権利日・支払日は考慮していません。
       </div>
 
       <div class="table-card">

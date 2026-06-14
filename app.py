@@ -8,6 +8,7 @@ import yfinance as yf
 import requests
 from bs4 import BeautifulSoup
 import io
+import os
 import re
 import uuid
 import time
@@ -157,6 +158,44 @@ def tax_rate_for(ticker: str) -> float:
     return TAX_JP if ticker.endswith(".T") else TAX_US
 
 
+# ── NISA（非課税）対象の銘柄 ────────────────────────────────
+_NISA_FILE = os.path.join(os.path.dirname(__file__), "nisa_codes.txt")
+
+
+def _normalize_nisa_code(code: str) -> str:
+    """NISA判定用にコードを正規化する（大文字化・末尾.T除去）。"""
+    code = str(code).strip().upper()
+    if code.endswith(".T"):
+        code = code[:-2]
+    return code
+
+
+def load_nisa_codes() -> set[str]:
+    """nisa_codes.txt からNISA対象の銘柄コードを読み込む。
+
+    ファイルが無い・読めない場合は空セット（＝全銘柄を従来通り課税扱い）。
+    リクエストごとに読み込むため、編集後の再起動は不要。
+    """
+    codes: set[str] = set()
+    try:
+        with open(_NISA_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                codes.add(_normalize_nisa_code(line))
+    except OSError:
+        pass
+    return codes
+
+
+def is_nisa(code: str) -> bool:
+    """指定コードがNISA対象（非課税）かどうかを判定する。"""
+    if not code:
+        return False
+    return _normalize_nisa_code(code) in load_nisa_codes()
+
+
 def calc_after_tax(gross: float | None, rate: float) -> float | None:
     return round(gross * (1 - rate), 0) if gross is not None else None
 
@@ -222,7 +261,8 @@ async def calculate(file: UploadFile = File(...)):
         if td.get("name") and name == raw_code:
             name = td["name"]
         monthly = round(value * div_yield / 12, 0) if div_yield else None
-        tax = tax_rate_for(ticker)
+        nisa = is_nisa(raw_code)
+        tax = 0.0 if nisa else tax_rate_for(ticker)
         monthly_net = calc_after_tax(monthly, tax)
 
         total_value += value
@@ -237,6 +277,7 @@ async def calculate(file: UploadFile = File(...)):
                 "value": value,
                 "div_yield": round(div_yield * 100, 2) if div_yield else None,
                 "tax_rate": round(tax * 100, 3),
+                "nisa": nisa,
                 "monthly_dividend": monthly,
                 "monthly_dividend_net": monthly_net,
             }
@@ -296,7 +337,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         div_yield = ticker_data.get("div_yield")
         name = get_display_name(item.code, item.name, ticker_data.get("name"))
         monthly = round(item.value * div_yield / 12, 0) if div_yield else None
-        tax = tax_rate_for(ticker) if ticker else TAX_JP
+        nisa = is_nisa(item.code)
+        tax = 0.0 if nisa else (tax_rate_for(ticker) if ticker else TAX_JP)
         monthly_net = calc_after_tax(monthly, tax)
 
         total_value += item.value
@@ -310,6 +352,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             "value": item.value,
             "div_yield": round(div_yield * 100, 2) if div_yield else None,
             "tax_rate": round(tax * 100, 3),
+            "nisa": nisa,
             "monthly_dividend": monthly,
             "monthly_dividend_net": monthly_net,
         })
