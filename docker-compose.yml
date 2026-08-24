@@ -7,4 +7,6 @@ services:
       # NISA対象銘柄リストをホスト側ファイルにバインド。
       # 編集すれば再起動・再ビルドなしで反映される（リクエストごとに読み込むため）。
       - ./nisa_codes.txt:/app/nisa_codes.txt
+      - ./ticker_aliases.txt:/app/ticker_aliases.txt
+      - ./yield_overrides.txt:/app/yield_overrides.txt
     restart: unless-stopped

@@ -192,7 +192,7 @@
         <div class="value accent" id="sumAnnual">—</div>
       </div>
       <div class="card">
-        <div class="label">平均配当利回り</div>
+        <div class="label">ポートフォリオ配当利回り</div>
         <div class="value" id="avgYield">—</div>
       </div>
     </div>
@@ -272,12 +272,11 @@
       document.getElementById('sumMonthly').textContent = fmt(data.total_monthly_dividend);
       document.getElementById('sumAnnual').textContent  = fmt(data.total_annual_dividend);
 
-      // 平均利回り計算
-      const withYield = data.holdings.filter(h => h.div_yield);
-      const avgY = withYield.length
-        ? (withYield.reduce((s, h) => s + h.div_yield, 0) / withYield.length).toFixed(2)
+      // 総評価額に対する年間配当の加重利回り
+      const portfolioYield = data.portfolio_dividend_yield != null
+        ? Number(data.portfolio_dividend_yield).toFixed(2)
         : null;
-      document.getElementById('avgYield').textContent = avgY ? avgY + ' %' : '—';
+      document.getElementById('avgYield').textContent = portfolioYield ? portfolioYield + ' %' : '—';
 
       // テーブル
       const tbody = document.getElementById('tableBody');
