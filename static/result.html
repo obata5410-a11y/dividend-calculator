@@ -46,6 +46,48 @@
     .card .value.green { color: #276749; }
     .card .sub { font-size: 0.72rem; color: #a0aec0; margin-top: 0.2rem; }
 
+    /* 税引き前から手取りまでの流れ */
+    .tax-flow-card { padding: 1.2rem 1.5rem; }
+    .tax-flow-values {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) 2rem minmax(150px, 1fr) 2rem minmax(150px, 1fr);
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .tax-flow-step { min-width: 0; }
+    .tax-flow-step.center { text-align: center; }
+    .tax-flow-step.end { text-align: right; }
+    .tax-flow-step .flow-label { font-size: 0.73rem; color: #718096; font-weight: 500; }
+    .tax-flow-step .flow-value {
+      margin-top: 0.2rem; font-size: 1.25rem; font-weight: 700;
+      color: #2b6cb0; font-variant-numeric: tabular-nums;
+    }
+    .tax-flow-step.tax .flow-value { color: #c05621; }
+    .tax-flow-step.net .flow-value { color: #276749; }
+    .tax-flow-step .flow-sub { margin-top: 0.15rem; font-size: 0.7rem; color: #a0aec0; }
+    .tax-flow-arrow {
+      display: grid; place-items: center; width: 1.8rem; height: 1.8rem;
+      border-radius: 50%; background: #ebf8ff; color: #4299e1;
+      font-size: 1rem; font-weight: 700;
+    }
+    .tax-breakdown { margin-top: 1rem; }
+    .tax-bar {
+      display: flex; height: 0.55rem; overflow: hidden;
+      border-radius: 999px; background: #e2e8f0;
+    }
+    .tax-bar-net { background: linear-gradient(90deg, #68d391, #48bb78); }
+    .tax-bar-tax { background: #f6ad55; }
+    .tax-legend {
+      display: flex; justify-content: space-between; gap: 1rem;
+      margin-top: 0.4rem; font-size: 0.7rem; color: #718096;
+    }
+    .tax-legend strong { color: #4a5568; }
+    @media (max-width: 680px) {
+      .tax-flow-values { grid-template-columns: 1fr; gap: 0.55rem; }
+      .tax-flow-step.center, .tax-flow-step.end { text-align: left; }
+      .tax-flow-arrow { transform: rotate(90deg); margin-left: 0.2rem; }
+    }
+
     /* グラフエリア */
     .charts-row {
       display: grid;
@@ -298,6 +340,15 @@
     const portfolioYield = data.portfolio_dividend_yield != null
       ? Number(data.portfolio_dividend_yield).toFixed(2)
       : null;
+    const annualGross = Number(data.total_annual_dividend) || 0;
+    const annualNet = Number(data.total_annual_dividend_net) || 0;
+    const annualTax = Math.max(annualGross - annualNet, 0);
+    const takeHomeRateValue = annualGross > 0
+      ? Math.min(annualNet / annualGross * 100, 100)
+      : 0;
+    const taxBurdenRateValue = 100 - takeHomeRateValue;
+    const takeHomeRate = takeHomeRateValue.toFixed(1);
+    const taxBurdenRate = taxBurdenRateValue.toFixed(1);
 
     const rows = data.holdings.map(h => {
       const isJP = h.ticker && h.ticker.endsWith('.T');
@@ -349,10 +400,36 @@
       <div class="summary-group">
         <div class="summary-label">税引き前（参考）</div>
         <div class="summary">
-          <div class="card gross">
-            <div class="label">月次配当（税引き前）</div>
-            <div class="value blue">${fmt(data.total_monthly_dividend)}</div>
-            <div class="sub">年間 ${fmt(data.total_annual_dividend)}</div>
+          <div class="card gross tax-flow-card">
+            <div class="tax-flow-values">
+              <div class="tax-flow-step">
+                <div class="flow-label">年間配当（税引き前）</div>
+                <div class="flow-value">${fmt(annualGross)}</div>
+                <div class="flow-sub">月次 ${fmt(data.total_monthly_dividend)}</div>
+              </div>
+              <div class="tax-flow-arrow" aria-hidden="true">→</div>
+              <div class="tax-flow-step tax center">
+                <div class="flow-label">年間税負担（概算）</div>
+                <div class="flow-value">▲ ${fmt(annualTax)}</div>
+                <div class="flow-sub">税負担率 ${taxBurdenRate}%</div>
+              </div>
+              <div class="tax-flow-arrow" aria-hidden="true">→</div>
+              <div class="tax-flow-step net end">
+                <div class="flow-label">年間配当（税引き後）</div>
+                <div class="flow-value">${fmt(annualNet)}</div>
+                <div class="flow-sub">手取り率 ${takeHomeRate}%</div>
+              </div>
+            </div>
+            <div class="tax-breakdown" aria-label="手取り率 ${takeHomeRate}%、税負担率 ${taxBurdenRate}%">
+              <div class="tax-bar">
+                <div class="tax-bar-net" style="width: ${takeHomeRateValue}%"></div>
+                <div class="tax-bar-tax" style="width: ${taxBurdenRateValue}%"></div>
+              </div>
+              <div class="tax-legend">
+                <span>手取り <strong>${takeHomeRate}%</strong></span>
+                <span>税負担 <strong>${taxBurdenRate}%</strong></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
