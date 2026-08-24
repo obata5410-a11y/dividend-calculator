@@ -325,34 +325,34 @@
 
     document.getElementById('app').innerHTML = `
       <div class="summary-group">
-        <div class="summary-label">税引き前（概算）</div>
+        <div class="summary-label">資産・配当サマリー（概算）</div>
         <div class="summary">
           <div class="card plain">
             <div class="label">総評価額</div>
             <div class="value">${fmt(data.total_value)}</div>
           </div>
-          <div class="card gross">
-            <div class="label">月次配当（税引き前）</div>
-            <div class="value blue">${fmt(data.total_monthly_dividend)}</div>
-            <div class="sub">年間 ${fmt(data.total_annual_dividend)}</div>
+          <div class="card net">
+            <div class="label">年間配当合計（税引き後）</div>
+            <div class="value green">${fmt(data.total_annual_dividend_net)}</div>
+          </div>
+          <div class="card net">
+            <div class="label">月次配当（税引き後）</div>
+            <div class="value green">${fmt(data.total_monthly_dividend_net)}</div>
           </div>
           <div class="card plain">
-            <div class="label">ポートフォリオ配当利回り</div>
+            <div class="label">ポートフォリオ配当利回り（税引き前）</div>
             <div class="value">${portfolioYield ? portfolioYield + ' %' : '—'}</div>
             <div class="sub">利回り取得済み ${data.yield_coverage_pct ?? '—'}%</div>
           </div>
         </div>
       </div>
       <div class="summary-group">
-        <div class="summary-label">税引き後（概算）</div>
+        <div class="summary-label">税引き前（参考）</div>
         <div class="summary">
-          <div class="card net">
-            <div class="label">月次配当（税引き後）</div>
-            <div class="value green">${fmt(data.total_monthly_dividend_net)}</div>
-          </div>
-          <div class="card net">
-            <div class="label">年次配当（税引き後）</div>
-            <div class="value green">${fmt(data.total_annual_dividend_net)}</div>
+          <div class="card gross">
+            <div class="label">月次配当（税引き前）</div>
+            <div class="value blue">${fmt(data.total_monthly_dividend)}</div>
+            <div class="sub">年間 ${fmt(data.total_annual_dividend)}</div>
           </div>
         </div>
       </div>
@@ -432,3 +432,4 @@
 </script>
 </body>
 </html>
+
