@@ -119,6 +119,18 @@ class ResultTemplateTests(unittest.TestCase):
         self.assertIn("${fmt(data.total_annual_dividend_net)}", template)
         self.assertNotIn("年次配当（税引き後）", template)
 
+    def test_tax_flow_shows_burden_and_take_home_rates(self):
+        template = (Path(__file__).parents[1] / "static" / "result.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("年間税負担（概算）", template)
+        self.assertIn("annualGross - annualNet", template)
+        self.assertIn("手取り率 ${takeHomeRate}%", template)
+        self.assertIn("税負担率 ${taxBurdenRate}%", template)
+        self.assertIn('class="tax-bar-net"', template)
+        self.assertIn('class="tax-bar-tax"', template)
+
 
 if __name__ == "__main__":
     unittest.main()
