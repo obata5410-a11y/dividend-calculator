@@ -1,5 +1,6 @@
 import unittest
 from collections import Counter
+from pathlib import Path
 from unittest.mock import patch
 
 import app
@@ -108,5 +109,17 @@ class ProcessHoldingsTests(unittest.TestCase):
         self.assertEqual(holding["tax_rate"], 0.0)
 
 
+class ResultTemplateTests(unittest.TestCase):
+    def test_after_tax_annual_total_is_a_standalone_summary_category(self):
+        template = (Path(__file__).parents[1] / "static" / "result.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("年間配当合計（税引き後）", template)
+        self.assertIn("${fmt(data.total_annual_dividend_net)}", template)
+        self.assertNotIn("年次配当（税引き後）", template)
+
+
 if __name__ == "__main__":
     unittest.main()
+
