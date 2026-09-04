@@ -123,6 +123,34 @@ def _fetch_us_ticker_data(ticker: str) -> dict:
     return result
 
 
+_fx_cache: dict = {"rate": None, "ts": 0.0}
+FX_CACHE_TTL = 600  # 秒
+
+
+def fetch_usd_jpy_rate() -> float | None:
+    """Yahoo Finance v8 chart API から現在のドル円レートを取得する（TTLキャッシュ付き）。"""
+    now = time.time()
+    if _fx_cache["rate"] is not None and now - _fx_cache["ts"] < FX_CACHE_TTL:
+        return _fx_cache["rate"]
+    try:
+        r = _HTTP.get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/JPY=X",
+            params={"range": "1d", "interval": "1m"},
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            chart = r.json().get("chart", {}).get("result", [])
+            if chart:
+                price = chart[0].get("meta", {}).get("regularMarketPrice")
+                if price:
+                    _fx_cache["rate"] = price
+                    _fx_cache["ts"] = now
+    except Exception:
+        pass
+    return _fx_cache["rate"]
+
+
 def fetch_ticker_data(ticker: str) -> dict:
     """日本株（4桁.T）はminkabu優先、配当利回り未取得時はYahoo Finance v8にフォールバック。"""
     m = re.fullmatch(r"(\d{4})\.T", ticker)
@@ -454,6 +482,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         "portfolio_dividend_yield": round(annual_dividend / total_value * 100, 2) if total_value else None,
         "yield_coverage_value": round(covered_value, 0),
         "yield_coverage_pct": round(covered_value / total_value * 100, 1) if total_value else 0.0,
+        "usd_jpy_rate": fetch_usd_jpy_rate(),
     }
 
 

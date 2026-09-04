@@ -16,7 +16,14 @@
     }
     .container { max-width: 1100px; margin: 0 auto; }
     h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.2rem; color: #1a202c; }
-    .subtitle { color: #718096; font-size: 0.88rem; margin-bottom: 2rem; }
+    .subtitle { color: #718096; font-size: 0.88rem; margin-bottom: 0.6rem; }
+    .fx-rate {
+      display: inline-block;
+      font-size: 0.8rem; color: #2b6cb0; font-weight: 600;
+      background: #ebf8ff; border: 1px solid #bee3f8;
+      border-radius: 6px; padding: 0.25rem 0.7rem;
+      margin-bottom: 1.4rem;
+    }
 
     /* サマリーカード */
     .summary-group { margin-bottom: 1.5rem; }
@@ -190,6 +197,7 @@
 <div class="container">
   <h1>配当金シミュレーター</h1>
   <p class="subtitle">マネーフォワードから取得したデータをもとに算出しています</p>
+  <div id="fxRate"></div>
   <div id="app"><div class="empty">データを読み込み中…</div></div>
 </div>
 
@@ -337,6 +345,10 @@
   }
 
   function render(data) {
+    document.getElementById('fxRate').innerHTML = data.usd_jpy_rate
+      ? `<div class="fx-rate">💴 現在の為替レート: 1 USD = ¥${data.usd_jpy_rate.toFixed(2)}</div>`
+      : '';
+
     const portfolioYield = data.portfolio_dividend_yield != null
       ? Number(data.portfolio_dividend_yield).toFixed(2)
       : null;
