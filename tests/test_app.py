@@ -1,5 +1,5 @@
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
 from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
@@ -180,6 +180,13 @@ class DividendEvidenceTests(unittest.TestCase):
     def test_fullwidth_punctuation_matches_exact_fund(self):
         result = self.run_process([app.HoldingItem(name="ｅＭＡＸＩＳ Ｓｌｉｍ 全世界株式（オール・カントリー）", value=10000)])
         self.assertEqual(result["confirmed_zero_count"], 1)
+
+    def test_review_date_uses_japan_day_when_server_is_previous_utc_day(self):
+        original = self.frozen.temp_original
+        records = app.load_dividend_evidence()
+        with patch.object(app, "datetime", wraps=datetime) as clock:
+            clock.now.return_value = datetime(2026, 11, 4, 16, 0, tzinfo=timezone.utc)
+            self.assertIsNotNone(original("GLD", "GLD", "", records))
 
     def test_expired_and_future_dated_evidence_is_not_used(self):
         # Access original function because setUp freezes the date only for integration tests.

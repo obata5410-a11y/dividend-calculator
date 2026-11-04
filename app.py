@@ -14,7 +14,7 @@ import uuid
 import json
 import unicodedata
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import Counter
 
 _HTTP = requests.Session()
@@ -306,7 +306,7 @@ def load_dividend_evidence() -> dict[str, dict]:
 
 def find_dividend_evidence(code: str, ticker: str, name: str, records: dict,
                            today=None) -> dict | None:
-    today = today or datetime.now(timezone.utc).date()
+    today = today or datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=9))).date()
     # コードがある場合は銘柄名にフォールバックしない（別商品との誤照合を防止）。
     candidates = (code, ticker) if code else (name,)
     for candidate in candidates:
