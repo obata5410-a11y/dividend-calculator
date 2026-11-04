@@ -275,40 +275,7 @@
         throw new Error(data.detail || 'サーバーエラーが発生しました');
       }
 
-      // 為替レート
-      document.getElementById('fxRate').innerHTML = data.usd_jpy_rate
-        ? `<div class="fx-rate">💴 現在の為替レート: 1 USD = ¥${data.usd_jpy_rate.toFixed(2)}</div>`
-        : '';
-
-      // サマリー
-      document.getElementById('sumValue').textContent   = fmt(data.total_value);
-      document.getElementById('sumMonthly').textContent = fmt(data.total_monthly_dividend);
-      document.getElementById('sumAnnual').textContent  = fmt(data.total_annual_dividend);
-
-      // 総評価額に対する年間配当の加重利回り
-      const portfolioYield = data.portfolio_dividend_yield != null
-        ? Number(data.portfolio_dividend_yield).toFixed(2)
-        : null;
-      document.getElementById('avgYield').textContent = portfolioYield ? portfolioYield + ' %' : '—';
-
-      // テーブル
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '';
-      for (const h of data.holdings) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${h.code} <span style="color:#a0aec0;font-size:0.78rem">${h.ticker !== h.code + '.T' && h.ticker !== h.code ? h.ticker : ''}</span></td>
-          <td>${h.name}</td>
-          <td class="num">${fmt(h.value)}</td>
-          <td class="num">${h.div_yield != null
-            ? `<span class="badge-ok">${h.div_yield} %</span>`
-            : '<span class="badge-none">取得不可</span>'}</td>
-          <td class="num">${h.monthly_dividend != null ? fmt(h.monthly_dividend) : '—'}</td>
-        `;
-        tbody.appendChild(tr);
-      }
-
-      results.classList.add('visible');
+      location.href = '/result?s=' + encodeURIComponent(data.session_id);
     } catch (err) {
       errorBox.textContent = 'エラー: ' + err.message;
       errorBox.classList.add('visible');

@@ -199,7 +199,21 @@
     th:first-child { background: #ebf8ff; }
     .card .sub, .summary-label, .tax-flow-step .flow-sub { color: #4a5568; }
     @media(max-width:680px) { .chart-card-header { flex-wrap: wrap; gap: 0.7rem; } }
+    .history-panel { padding:1.25rem; margin-bottom:1.5rem; background:#fff; border:1px solid #bee3f8; border-radius:12px; }
+    .history-panel h2 { font-size:1rem; color:#2b6cb0; margin-bottom:.7rem; }
+    .history-panel p { font-size:.8rem; color:#4a5568; line-height:1.7; margin:.6rem 0; }
+    .history-actions { display:flex; flex-wrap:wrap; gap:.7rem; align-items:center; margin:1rem 0; }
+    .history-actions button, .history-import, .history-actions select { padding:.5rem .7rem; border:1px solid #90cdf4; border-radius:6px; background:#f7fbff; font-size:.8rem; color:#2b6cb0; }
+    .history-import { cursor:pointer; } .history-import input { display:block; max-width:230px; margin-top:.3rem; }
+    .history-comparisons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+    .history-compare { padding:1rem; border-radius:8px; background:#f0f6ff; }
+    .history-compare h3 { font-size:.95rem; } .history-compare dt { font-size:.8rem; margin-top:.6rem; color:#4a5568; }
+    .history-compare dd { font-weight:bold; font-size:.95rem; margin-top:.3rem; overflow-wrap:anywhere; }
+    .history-chart { height:280px; margin:1rem 0; }
+    .history-panel summary { cursor:pointer; font-size:.85rem; color:#2b6cb0; }
+    @media(max-width:680px) { .history-comparisons { grid-template-columns:1fr; } }
   </style>
+<script src="/static/history.js"></script>
 </head>
 <body>
 <div class="container">
@@ -231,6 +245,7 @@
       ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">根拠資料</a>` : '';
   }
   function fmt(n) {
+    if (n == null) return '—';
     return '¥' + Math.round(n).toLocaleString('ja-JP');
   }
 
@@ -386,9 +401,9 @@
     const takeHomeRateValue = annualGross > 0
       ? Math.min(annualNet / annualGross * 100, 100)
       : 0;
-    const taxBurdenRateValue = 100 - takeHomeRateValue;
-    const takeHomeRate = takeHomeRateValue.toFixed(1);
-    const taxBurdenRate = taxBurdenRateValue.toFixed(1);
+    const taxBurdenRateValue = annualGross > 0 ? 100 - takeHomeRateValue : 0;
+    const takeHomeRate = annualGross > 0 ? takeHomeRateValue.toFixed(1) : "—";
+    const taxBurdenRate = annualGross > 0 ? taxBurdenRateValue.toFixed(1) : "—";
 
     const rows = data.holdings.map(h => {
       const isJP = h.tax_category ? h.tax_category === "JP" : !h.ticker || h.ticker.endsWith(".T");
@@ -410,14 +425,14 @@
             : '<span class="badge-none">未取得（集計対象外）</span>'}</td>
           <td class="num">${h.monthly_dividend != null ? fmt(h.monthly_dividend) : '—'}</td>
           <td class="num net-col">${h.monthly_dividend_net != null ? fmt(h.monthly_dividend_net) : '—'}</td>
-          <td>${taxBadge}</td>
+          <td>${taxBadge}<div class="sub">${h.calculation_method === "quantity_ttm" ? "数量×過去1年配当" : h.div_yield == null ? "" : "評価額×利回り（概算）"}</div></td>
         </tr>`;
     }).join('');
 
     document.getElementById('app').innerHTML = `
       <div class="note">計算日時：${dateLabel(data.calculated_at)}<br>
         保有残高の基準日時：${dateLabel(data.holdings_as_of)}（元データで確認してください）<br>
-        未取得：${data.missing_yield_count ?? data.holdings.filter(h => h.div_yield == null).length}銘柄。未取得分の配当は合計に含みません。0円と確定した意味ではありません。<br>
+        ${data.holdings.some(h => h.div_yield == null) ? `未取得：${data.holdings.filter(h => h.div_yield == null).length}銘柄。未取得分の配当は集計対象外（0円と確定した意味ではありません）。` : '保有銘柄の利回り確認率：100%（確認済み0円実績の補完を含みます）'}<br>
         確認済み0円：${data.confirmed_zero_count ?? data.holdings.filter(h => h.div_yield === 0).length}銘柄（無配・無分配の実績。将来の0円を保証しません）。<br>
         投信内部で受け取る配当は、保有者への現金分配とは別です。無分配の投信に内部配当を重ねて加算しません。<br>
         月平均は年額÷12の概算で、実際の月別入金予定ではありません。
@@ -451,19 +466,19 @@
             <div class="tax-flow-values">
               <div class="tax-flow-step">
                 <div class="flow-label">年間配当（税引き前）</div>
-                <div class="flow-value">${fmt(annualGross)}</div>
+                <div class="flow-value">${fmt(data.total_annual_dividend)}</div>
                 <div class="flow-sub">月平均 ${fmt(data.total_monthly_dividend)}</div>
               </div>
               <div class="tax-flow-arrow" aria-hidden="true">→</div>
               <div class="tax-flow-step tax center">
                 <div class="flow-label">年間税負担（概算）</div>
-                <div class="flow-value">▲ ${fmt(annualTax)}</div>
+                <div class="flow-value">▲ ${fmt(data.total_annual_dividend == null ? null : annualTax)}</div>
                 <div class="flow-sub">税負担率 ${taxBurdenRate}%</div>
               </div>
               <div class="tax-flow-arrow" aria-hidden="true">→</div>
               <div class="tax-flow-step net end">
                 <div class="flow-label">年間配当（税引き後）</div>
-                <div class="flow-value">${fmt(annualNet)}</div>
+                <div class="flow-value">${fmt(data.total_annual_dividend_net)}</div>
                 <div class="flow-sub">手取り率 ${takeHomeRate}%</div>
               </div>
             </div>
@@ -481,6 +496,11 @@
         </div>
       </div>
 
+      <div class="summary-group"><div class="summary-label">配当の見方</div><div class="summary">
+        <div class="card"><div class="label">年間手取り配当利回り</div><div class="value green">${data.total_value > 0 && data.holdings.some(h => h.div_yield != null) ? (annualNet / data.total_value * 100).toFixed(2)+'%' : '—'}</div><div class="sub">全証券評価額に対する税後の試算</div></div>
+        <div class="card"><div class="label">配当上位3銘柄への集中度</div><div class="value">${annualNet > 0 ? (data.holdings.map(h=>h.annual_dividend_net ?? (h.monthly_dividend_net || 0)*12).sort((a,b)=>b-a).slice(0,3).reduce((a,b)=>a+b,0)/annualNet*100).toFixed(1)+'%' : '—'}</div><div class="sub">年間手取り配当のうち上位3銘柄が占める割合</div></div>
+      </div></div>
+      <section class="history-panel" id="historyPanel" aria-label="残高と配当試算の履歴"></section>
       <div class="charts-row">
         <div class="chart-card">
           <h3>📊 ポートフォリオ内訳（評価額）</h3>
@@ -507,7 +527,7 @@
         米国株・米ETF = 28.28%（米国源泉10% + 国内20.315%・外国税額控除なしの概算）<br>
         同じ銘柄でもNISA分と課税口座分を分けて計算します。口座情報がない場合は登録済みの口座区分を使用します。<br>
         国内NISAは0%、米国株・米ETFのNISAは米国源泉10%で計算します。<br>
-        利回りは国内銘柄のみんかぶ掲載値（予想・実績の区別は未取得）、Yahoo Financeの過去1年実績、設定ファイルの過去実績、出所と確認日を保存した無配・無分配実績が混在します。確認済み実績は再確認期限を過ぎると自動補完に使用しません。明細の利回りにカーソルを合わせると取得元を確認できます。<br>計算には丸め前の利回りと配当額を使用し、表示時に丸めるため明細と合計に端数差が生じます。未取得がある場合、全資産で割った利回りも不完全な参考値です。<br>※ 外国税額控除の適用、実際の権利日・支払日は考慮していません。上書き利回りは過去実績で、将来の分配を保証しません。
+        利回りは国内銘柄のみんかぶ掲載値（予想・実績の区別は未取得）、Yahoo Financeの過去1年実績、設定ファイルの過去実績、出所と確認日を保存した無配・無分配実績が混在します。確認済み実績は再確認期限を過ぎると自動補完に使用しません。明細の利回りにカーソルを合わせると取得元を確認できます。<br>保有数量と通貨・配当単価が揃う場合は数量×過去1年の配当単価（外貨は参考為替で円換算）、それ以外は評価額×利回りによる概算です。基準日時の違いにより実際の受取額と差が生じます。<br>計算には丸め前の利回りと配当額を使用し、表示時に丸めるため明細と合計に端数差が生じます。未取得がある場合、全資産で割った利回りも不完全な参考値です。<br>※ 外国税額控除の適用、実際の権利日・支払日は考慮していません。上書き利回りは過去実績で、将来の分配を保証しません。
       </div>
 
       <div class="table-card">
@@ -533,6 +553,7 @@
 
     // DOM挿入後にChartを描画
     renderCharts(data);
+    window.DividendHistory.attach(data);
   }
 
   const params = new URLSearchParams(location.search);
@@ -547,7 +568,7 @@
       .then(data => render(data))
       .catch(e => {
         document.getElementById('app').innerHTML =
-          `<div class="empty">${e.message}<br><a class="btn-back" href="/">← トップに戻る</a></div>`;
+          `<div class="empty">${escapeHtml(e.message)}<br><a class="btn-back" href="/">← トップに戻る</a></div>`;
       });
   } else {
     document.getElementById('app').innerHTML = `

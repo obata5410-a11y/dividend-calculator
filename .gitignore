@@ -4,8 +4,7 @@ __pycache__/
 .env
 .venv/
 venv/
-# Chrome拡張・ネイティブホスト関連（サーバー不要）
-extension/
+# ネイティブホスト関連（サーバー不要）
 native_host.py
 native_host_launcher.bat
 native_host_manifest.json

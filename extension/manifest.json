@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "配当金シミュレーター",
+  "version": "1.1.0",
+  "description": "マネーフォワードの保有証券データを取得して配当金を試算します",
+  "permissions": ["activeTab", "scripting", "nativeMessaging"],
+  "host_permissions": [
+    "https://moneyforward.com/*",
+    "http://localhost:8000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://moneyforward.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

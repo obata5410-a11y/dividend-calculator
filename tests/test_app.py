@@ -140,6 +140,33 @@ class ProcessHoldingsTests(unittest.TestCase):
         self.assertEqual(result["yield_coverage_pct"], 50)
         self.assertEqual(result["missing_yield_count"], 1)
 
+    def test_zero_dividend_keeps_tax_classification(self):
+        result = self.run_process([app.HoldingItem(name="GLD", code="GLD", value=10000)], yields={"GLD": 0})
+        self.assertEqual(result["holdings"][0]["tax_rate"], 28.284)
+
+    def test_unknown_dividend_total_is_not_zero(self):
+        result = self.run_process([app.HoldingItem(name="UNKNOWN", code="UNKNOWN", value=10000)])
+        self.assertIsNone(result["total_annual_dividend_net"])
+        self.assertIsNone(result["portfolio_dividend_yield"])
+
+    def test_quantity_calculation_uses_dividend_per_share_and_fx(self):
+        with (patch.object(app, "fetch_ticker_data", return_value={"div_yield": 0.04, "annual_dividend_per_share": 4, "currency": "USD"}),
+              patch.object(app, "fetch_usd_jpy_rate", return_value=150),
+              patch.object(app, "load_nisa_lot_counts", return_value=Counter()),
+              patch.object(app, "load_ticker_aliases", return_value={}),
+              patch.object(app, "load_yield_overrides", return_value={})):
+            result = app.process_holdings([app.HoldingItem(name="TEST", code="TEST", value=200000, quantity=10, account="NISA")])
+        h = result["holdings"][0]
+        self.assertEqual(h["calculation_method"], "quantity_ttm")
+        self.assertEqual(h["annual_dividend"], 6000)
+        self.assertEqual(h["annual_dividend_net"], 5400)
+
+    def test_identical_lots_in_different_accounts_are_retained(self):
+        result = self.run_process([app.HoldingItem(name="TEST", code="TEST", value=10000, account="NISA"),
+            app.HoldingItem(name="TEST", code="TEST", value=10000, account="特定")], yields={"TEST": 0.12})
+        self.assertEqual(result["total_value"], 20000)
+        self.assertEqual(result["holdings"][0]["nisa_status"], "partial")
+
 
 class DividendEvidenceTests(unittest.TestCase):
     run_process = ProcessHoldingsTests.run_process

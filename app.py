@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import pandas as pd
 import yfinance as yf
 import requests
@@ -12,6 +12,7 @@ import os
 import re
 import uuid
 import json
+import math
 import unicodedata
 import time
 from datetime import datetime, timezone, timedelta
@@ -120,6 +121,8 @@ def _fetch_us_ticker_data(ticker: str) -> dict:
 
         if annual_div > 0 and price and price > 0:
             result["div_yield"] = annual_div / price
+            result["annual_dividend_per_share"] = annual_div
+            result["currency"] = meta.get("currency")
 
     except Exception:
         pass
@@ -342,13 +345,18 @@ async def calculate(file: UploadFile = File(...)):
     else:
         raise HTTPException(status_code=400, detail="CSVのエンコーディングを認識できませんでした")
 
-    df = pd.read_csv(io.StringIO(text))
+    try:
+        df = pd.read_csv(io.StringIO(text), dtype=str)
+    except (ValueError, pd.errors.ParserError) as exc:
+        raise HTTPException(status_code=400, detail="CSVを読み取れませんでした") from exc
 
     # マネーフォワードの保有証券CSVカラムを検索
     col_map = {}
     for col in df.columns:
         col_s = col.strip()
-        if "銘柄コード" in col_s or "コード" in col_s:
+        if "保有数" in col_s or "数量" in col_s:
+            col_map["quantity"] = col
+        elif "銘柄コード" in col_s or "コード" in col_s:
             col_map["code"] = col
         elif "銘柄名" in col_s or "銘柄" in col_s:
             col_map["name"] = col
@@ -381,21 +389,31 @@ async def calculate(file: UploadFile = File(...)):
         raw_value = str(row[col_map["value"]]).replace(",", "").replace("¥", "").strip()
         try:
             value = float(raw_value)
-        except ValueError:
-            continue
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="評価額に数値以外が含まれています") from exc
 
         account = str(row.get(col_map.get("account", ""), "")).strip()
-        items.append(HoldingItem(name=name, code=raw_code, value=value, account=account))
+        if not math.isfinite(value) or value < 0:
+            raise HTTPException(status_code=400, detail="評価額に不正な数値が含まれています")
+        quantity = None
+        raw_quantity = str(row.get(col_map.get("quantity", ""), "")).replace(",", "").replace("株", "").replace("口", "").strip()
+        try:
+            candidate = float(raw_quantity)
+            if math.isfinite(candidate) and candidate >= 0:
+                quantity = candidate
+        except ValueError:
+            pass
+        items.append(HoldingItem(name=name, code=raw_code, value=value, account=account, quantity=quantity))
 
-    return process_holdings(items)
+    return create_session(process_holdings(items))
 
 
 class HoldingItem(BaseModel):
     name: str
     code: str = ""
-    value: float
+    value: float = Field(allow_inf_nan=False, ge=0)
     account: str = ""
-    quantity: float | None = None
+    quantity: float | None = Field(default=None, allow_inf_nan=False, ge=0)
 
 
 class HoldingsPayload(BaseModel):
@@ -436,13 +454,14 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             group["code"] = code
         if item.name and item.name != item.code:
             group["name"] = item.name
-        group["lots"].append({"value": item.value, "nisa": nisa})
+        group["lots"].append({"value": item.value, "nisa": nisa, "quantity": item.quantity})
 
     results = []
     total_value = 0.0
     total_monthly = 0.0
     total_monthly_net = 0.0
     covered_value = 0.0
+    fx_rate = fetch_usd_jpy_rate()
 
     for i, group in enumerate(merged.values()):
         ticker = group["ticker"]
@@ -467,23 +486,33 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             evidence = None
         tax_category = "JP" if not ticker or ticker.endswith(".T") else "US"
         dividend_checked_at = datetime.now(timezone.utc).isoformat()
+        effective_tax = sum(lot["value"] * (
+            (nisa_tax_rate_for(ticker) if ticker else 0.0) if lot["nisa"]
+            else (tax_rate_for(ticker) if ticker else TAX_JP)
+        ) for lot in group["lots"]) / value
         if div_yield is not None:
-            monthly_exact = value * div_yield / 12
+            per_share = ticker_data.get("annual_dividend_per_share") if yield_source == "market" else None
+            currency = ticker_data.get("currency")
+            conversion = 1.0 if currency == "JPY" else fx_rate if currency == "USD" else None
+            use_quantity = (per_share is not None and conversion is not None
+                            and all(lot["quantity"] is not None for lot in group["lots"]))
+            monthly_exact = 0.0
             monthly_net_exact = 0.0
             for lot in group["lots"]:
                 if lot["nisa"]:
                     rate = nisa_tax_rate_for(ticker) if ticker else 0.0
                 else:
                     rate = tax_rate_for(ticker) if ticker else TAX_JP
-                monthly_net_exact += lot["value"] * div_yield / 12 * (1 - rate)
+                lot_gross = (lot["quantity"] * per_share * conversion / 12 if use_quantity
+                             else lot["value"] * div_yield / 12)
+                monthly_exact += lot_gross
+                monthly_net_exact += lot_gross * (1 - rate)
             monthly = round(monthly_exact, 0)
             monthly_net = round(monthly_net_exact, 0)
-            effective_tax = 1 - (monthly_net_exact / monthly_exact) if monthly_exact else 0.0
             covered_value += value
         else:
             monthly = None
             monthly_net = None
-            effective_tax = 0.0
 
         nisa_count = sum(1 for lot in group["lots"] if lot["nisa"])
         if nisa_count == 0:
@@ -504,6 +533,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             "name": name,
             "value": value,
             "div_yield": round(div_yield * 100, 2) if div_yield is not None else None,
+            "calculation_method": "unavailable" if div_yield is None else "quantity_ttm" if use_quantity else "valuation_yield",
+            "quantity": sum(lot["quantity"] for lot in group["lots"]) if all(lot["quantity"] is not None for lot in group["lots"]) else None,
             "yield_source": yield_source,
             "dividend_evidence": evidence,
             "dividend_status": "unavailable" if div_yield is None else "zero" if div_yield == 0 else "paying",
@@ -520,7 +551,6 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         })
 
     annual_dividend = round(total_monthly * 12, 0)
-    fx_rate = fetch_usd_jpy_rate()
     return {
         "calculated_at": datetime.now(timezone.utc).isoformat(),
         "holdings_as_of": None,
@@ -529,11 +559,11 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         "fx_fetched_at": datetime.fromtimestamp(_fx_cache["ts"], timezone.utc).isoformat() if _fx_cache["ts"] else None,
         "holdings": results,
         "total_value": total_value,
-        "total_monthly_dividend": round(total_monthly, 0),
-        "total_annual_dividend": annual_dividend,
-        "total_monthly_dividend_net": round(total_monthly_net, 0),
-        "total_annual_dividend_net": round(total_monthly_net * 12, 0),
-        "portfolio_dividend_yield": round(total_monthly * 12 / total_value * 100, 2) if total_value else None,
+        "total_monthly_dividend": round(total_monthly, 0) if covered_value else None,
+        "total_annual_dividend": annual_dividend if covered_value else None,
+        "total_monthly_dividend_net": round(total_monthly_net, 0) if covered_value else None,
+        "total_annual_dividend_net": round(total_monthly_net * 12, 0) if covered_value else None,
+        "portfolio_dividend_yield": round(total_monthly * 12 / total_value * 100, 2) if total_value and covered_value else None,
         "yield_coverage_value": round(covered_value, 0),
         "yield_coverage_pct": round(covered_value / total_value * 100, 1) if total_value else 0.0,
         "usd_jpy_rate": fx_rate,
@@ -544,7 +574,10 @@ def process_holdings(items: list[HoldingItem]) -> dict:
 async def calculate_from_json(payload: HoldingsPayload):
     if not payload.holdings:
         raise HTTPException(status_code=400, detail="保有銘柄データが空です")
-    result = process_holdings(payload.holdings)
+    return create_session(process_holdings(payload.holdings))
+
+
+def create_session(result: dict) -> dict:
     sid = uuid.uuid4().hex[:10]
     _sessions[sid] = result
     result["session_id"] = sid

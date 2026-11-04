@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'), H=require('../static/history.js');
+const r=(date,amount=100,scope='simulator')=>({date,scope,total_value:amount,annual_net:10,annual_gross:12,coverage:100,method:'dividend-v3'});
+assert.equal(H.jstDay('2026-11-04T16:00:00Z'),'2026-11-05');
+assert.equal(H.targetDay('2026-03-31',-1),'2026-02-28');
+assert.equal(H.targetDay('2024-02-29',-12),'2023-02-28');
+const current=r('2026-11-05',120);
+assert.equal(H.baseline([r('2026-10-04'),r('2026-10-06'),r('2026-09-30')],current,-1).date,'2026-10-04');
+assert.equal(H.baseline([r('2026-09-30')],current,-1),null);
+assert.equal(H.baseline([r('2026-10-05',100,'mf_securities')],current,-1),null);
+assert.deepEqual(H.change(120,100),{amount:20,percent:20});
+assert.equal(H.change(120,0).percent,null);assert.equal(H.change(null,100),null);
+assert.equal(H.merge([r('2026-10-05',100)],[r('2026-10-05',999)])[0].total_value,100);
+assert.equal(H.merge([r('2026-10-05',100)],[r('2026-10-05',999)],true)[0].total_value,999);
+assert.throws(()=>H.merge([],[r('2026-02-30')]));assert.throws(()=>H.merge([],[r('2026-10-05',Infinity)]));
+console.log('History: JST, leap years, exact comparison month/scope, missing values, zero baseline, deduplication, input validation PASS');
