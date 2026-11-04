@@ -23,6 +23,7 @@ class ProcessHoldingsTests(unittest.TestCase):
             patch.object(app, "load_yield_overrides", return_value=overrides),
             patch.object(app, "fetch_ticker_data", side_effect=fake_fetch),
             patch.object(app.time, "sleep"),
+            patch.object(app, "fetch_usd_jpy_rate", return_value=None),
         ):
             return app.process_holdings(items)
 
@@ -107,6 +108,36 @@ class ProcessHoldingsTests(unittest.TestCase):
         self.assertEqual(holding["nisa_status"], "all")
         self.assertEqual(holding["nisa_value"], 30_000)
         self.assertEqual(holding["tax_rate"], 0.0)
+
+    def test_domestic_fund_tax_category_matches_nisa_calculation(self):
+        result = self.run_process(
+            [app.HoldingItem(name="国内投信", value=10000, account="NISA")],
+            overrides={"国内投信": 0.04},
+        )
+        holding = result["holdings"][0]
+        self.assertEqual(holding["tax_category"], "JP")
+        self.assertEqual(holding["tax_rate"], 0)
+        self.assertEqual(holding["annual_dividend_net"], 400)
+
+    def test_annual_totals_do_not_multiply_rounded_months(self):
+        result = self.run_process(
+            [app.HoldingItem(name="JT", code="2914", value=10000)],
+            yields={"2914.T": 0.04},
+        )
+        self.assertEqual(result["total_annual_dividend"], 400)
+        self.assertEqual(result["total_annual_dividend_net"], 319)
+
+    def test_confirmed_zero_is_distinct_from_missing(self):
+        result = self.run_process(
+            [app.HoldingItem(name="zero", code="ZERO", value=10000),
+             app.HoldingItem(name="missing", code="MISSING", value=10000)],
+            yields={"ZERO": 0.0},
+        )
+        zero, missing = result["holdings"]
+        self.assertEqual(zero["annual_dividend"], 0)
+        self.assertIsNone(missing["annual_dividend"])
+        self.assertEqual(result["yield_coverage_pct"], 50)
+        self.assertEqual(result["missing_yield_count"], 1)
 
 
 class ResultTemplateTests(unittest.TestCase):

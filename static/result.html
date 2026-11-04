@@ -191,6 +191,14 @@
     .toggle-btn:first-child { border-right: 1px solid #bee3f8; }
     .toggle-btn.active { background: #3182ce; color: #fff; }
 
+    .table-card { overflow: hidden; }
+    .table-scroll { overflow-x: auto; }
+    .scroll-hint { padding: 0.7rem 1.25rem; font-size: 0.8rem; color: #4a5568; }
+    td:nth-child(2) { white-space: normal; min-width: 140px; max-width: 240px; overflow-wrap: anywhere; }
+    th:first-child, td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; }
+    th:first-child { background: #ebf8ff; }
+    .card .sub, .summary-label, .tax-flow-step .flow-sub { color: #4a5568; }
+    @media(max-width:680px) { .chart-card-header { flex-wrap: wrap; gap: 0.7rem; } }
   </style>
 </head>
 <body>
@@ -202,6 +210,12 @@
 </div>
 
 <script>
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
+  }
+  function dateLabel(value) {
+    return value ? escapeHtml(new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"})) + " JST" : "不明";
+  }
   function fmt(n) {
     return '¥' + Math.round(n).toLocaleString('ja-JP');
   }
@@ -274,8 +288,8 @@
         net:   withDiv.map(h => h.monthly_dividend_net),
       },
       annual: {
-        gross: withDiv.map(h => h.monthly_dividend * 12),
-        net:   withDiv.map(h => h.monthly_dividend_net * 12),
+        gross: withDiv.map(h => (h.annual_dividend ?? h.monthly_dividend * 12)),
+        net:   withDiv.map(h => (h.annual_dividend_net ?? h.monthly_dividend_net * 12)),
       }
     };
 
@@ -346,7 +360,7 @@
 
   function render(data) {
     document.getElementById('fxRate').innerHTML = data.usd_jpy_rate
-      ? `<div class="fx-rate">💴 現在の為替レート: 1 USD = ¥${data.usd_jpy_rate.toFixed(2)}</div>`
+      ? `<div class="fx-rate">💴 参考為替レート: 1 USD = ¥${data.usd_jpy_rate.toFixed(2)}<br>出所：Yahoo Finance／取得：${dateLabel(data.fx_fetched_at)}</div>`
       : '';
 
     const portfolioYield = data.portfolio_dividend_yield != null
@@ -363,7 +377,7 @@
     const taxBurdenRate = taxBurdenRateValue.toFixed(1);
 
     const rows = data.holdings.map(h => {
-      const isJP = h.ticker && h.ticker.endsWith('.T');
+      const isJP = h.tax_category ? h.tax_category === "JP" : !h.ticker || h.ticker.endsWith(".T");
       const taxBadge = h.monthly_dividend != null
         ? (h.nisa_status === 'partial'
             ? `<span class="badge-partial">一部NISA 実効 ${h.tax_rate}%</span>`
@@ -374,12 +388,12 @@
         : '';
       return `
         <tr>
-          <td>${h.code || '—'}</td>
-          <td>${h.name}</td>
+          <td>${escapeHtml(h.code || '—')}</td>
+          <td>${escapeHtml(h.name)}</td>
           <td class="num">${fmt(h.value)}</td>
-          <td class="num">${h.div_yield != null
-            ? `<span class="badge-ok">${h.div_yield} %</span>`
-            : '<span class="badge-none">取得不可</span>'}</td>
+          <td class="num" title="${escapeHtml(h.yield_source === 'override' ? '設定ファイルの過去実績利回り（設定日不明）' : h.ticker && h.ticker.endsWith('.T') ? 'みんかぶ優先／未取得時Yahoo Finance過去1年実績。予想・実績が混在する場合があります' : 'Yahoo Finance過去1年の配当合計÷取得時株価')}／取得確認：${dateLabel(h.dividend_checked_at)}">${h.div_yield != null
+            ? `<span class="badge-ok">${h.div_yield} %${h.div_yield === 0 ? "（確認値0%）" : ""}</span>`
+            : '<span class="badge-none">未取得（集計対象外）</span>'}</td>
           <td class="num">${h.monthly_dividend != null ? fmt(h.monthly_dividend) : '—'}</td>
           <td class="num net-col">${h.monthly_dividend_net != null ? fmt(h.monthly_dividend_net) : '—'}</td>
           <td>${taxBadge}</td>
@@ -387,6 +401,11 @@
     }).join('');
 
     document.getElementById('app').innerHTML = `
+      <div class="note">計算日時：${dateLabel(data.calculated_at)}<br>
+        保有残高の基準日時：${dateLabel(data.holdings_as_of)}（元データで確認してください）<br>
+        未取得：${data.missing_yield_count ?? data.holdings.filter(h => h.div_yield == null).length}銘柄。未取得分の配当は合計に含みません。0円と確定した意味ではありません。<br>
+        月平均は年額÷12の概算で、実際の月別入金予定ではありません。
+      </div>
       <div class="summary-group">
         <div class="summary-label">資産・配当サマリー（概算）</div>
         <div class="summary">
@@ -399,13 +418,13 @@
             <div class="value green">${fmt(data.total_annual_dividend_net)}</div>
           </div>
           <div class="card net">
-            <div class="label">月次配当（税引き後）</div>
+            <div class="label">月平均配当（税引き後）</div>
             <div class="value green">${fmt(data.total_monthly_dividend_net)}</div>
           </div>
           <div class="card plain">
             <div class="label">ポートフォリオ配当利回り（税引き前）</div>
             <div class="value">${portfolioYield ? portfolioYield + ' %' : '—'}</div>
-            <div class="sub">利回り取得済み ${data.yield_coverage_pct ?? '—'}%</div>
+            <div class="sub">利回り確認済み（評価額ベース）${data.yield_coverage_pct ?? '—'}%</div>
           </div>
         </div>
       </div>
@@ -417,7 +436,7 @@
               <div class="tax-flow-step">
                 <div class="flow-label">年間配当（税引き前）</div>
                 <div class="flow-value">${fmt(annualGross)}</div>
-                <div class="flow-sub">月次 ${fmt(data.total_monthly_dividend)}</div>
+                <div class="flow-sub">月平均 ${fmt(data.total_monthly_dividend)}</div>
               </div>
               <div class="tax-flow-arrow" aria-hidden="true">→</div>
               <div class="tax-flow-step tax center">
@@ -455,7 +474,7 @@
           <div class="chart-card-header">
             <h3>📈 配当貢献度ランキング（税引き後）</h3>
             <div class="toggle-group">
-              <button class="toggle-btn active" id="btnMonthly" onclick="switchBarMode('monthly')">月次</button>
+              <button class="toggle-btn active" id="btnMonthly" onclick="switchBarMode('monthly')">月平均</button>
               <button class="toggle-btn" id="btnAnnual" onclick="switchBarMode('annual')">年次</button>
             </div>
           </div>
@@ -464,30 +483,34 @@
       </div>
 
       <div class="note">
+        <details><summary>利回りの取得元・確認日時</summary>
+          ${data.holdings.map(h => `<div>${escapeHtml(h.name)}：${h.div_yield == null ? '未取得' : h.yield_source === 'override' ? '設定済みの過去実績（設定日不明）' : h.ticker && h.ticker.endsWith('.T') ? 'みんかぶ優先／Yahoo Finance補完' : 'Yahoo Finance 過去1年実績'}／取得確認 ${dateLabel(h.dividend_checked_at)}</div>`).join('')}
+        </details>
         <strong>税率の前提：</strong>
-        日本株・国内ETF = 20.315%（所得税15.315% + 住民税5%）／
-        米国株・米ETF = 28.28%（米国源泉10% + 国内20.315%・外国税額控除なし最大値）<br>
-        <strong>nisa_codes.txt</strong>は1行を1保有ロットとして扱い、同一コードが課税口座にもある場合は分けて計算します。<br>
+        日本株・国内ETF・国内投信 = 20.315%（所得税15.315% + 住民税5%）／
+        米国株・米ETF = 28.28%（米国源泉10% + 国内20.315%・外国税額控除なしの概算）<br>
+        同じ銘柄でもNISA分と課税口座分を分けて計算します。口座情報がない場合は登録済みの口座区分を使用します。<br>
         国内NISAは0%、米国株・米ETFのNISAは米国源泉10%で計算します。<br>
-        ※ 外国税額控除の適用、実際の権利日・支払日は考慮していません。上書き利回りは過去実績で、将来の分配を保証しません。
+        利回りは国内銘柄のみんかぶ掲載値（予想・実績の区別は未取得）、Yahoo Financeの過去1年実績、設定ファイルの過去実績が混在します。明細の利回りにカーソルを合わせると取得元を確認できます。<br>計算には丸め前の利回りと配当額を使用し、表示時に丸めるため明細と合計に端数差が生じます。未取得がある場合、全資産で割った利回りも不完全な参考値です。<br>※ 外国税額控除の適用、実際の権利日・支払日は考慮していません。上書き利回りは過去実績で、将来の分配を保証しません。
       </div>
 
       <div class="table-card">
         <h2>保有銘柄 一覧（${data.holdings.length} 銘柄）</h2>
-        <table>
+        <p class="scroll-hint">左右にスクロールして金額・税率を確認できます。</p>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="保有銘柄明細（横スクロール）"><table>
           <thead>
             <tr>
               <th>コード</th>
               <th>銘柄名</th>
               <th class="num">評価額</th>
               <th class="num">配当利回り</th>
-              <th class="num">月次配当（税前）</th>
-              <th class="num net-col">月次配当（税後）</th>
+              <th class="num">月平均配当（税前）</th>
+              <th class="num net-col">月平均配当（税後）</th>
               <th>税率</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
-        </table>
+        </table></div>
       </div>
       <a class="btn-back" href="/">← CSVアップロード画面に戻る</a>
     `;

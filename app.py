@@ -12,6 +12,7 @@ import os
 import re
 import uuid
 import time
+from datetime import datetime, timezone
 from collections import Counter
 
 _HTTP = requests.Session()
@@ -406,6 +407,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
     results = []
     total_value = 0.0
     total_monthly = 0.0
+    total_monthly_net = 0.0
     covered_value = 0.0
 
     for i, group in enumerate(merged.values()):
@@ -423,6 +425,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             code, ticker, name, ticker_data.get("div_yield"), yield_overrides
         )
 
+        tax_category = "JP" if not ticker or ticker.endswith(".T") else "US"
+        dividend_checked_at = datetime.now(timezone.utc).isoformat()
         if div_yield is not None:
             monthly_exact = value * div_yield / 12
             monthly_net_exact = 0.0
@@ -451,7 +455,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
 
         total_value += value
         if monthly is not None:
-            total_monthly += monthly
+            total_monthly += monthly_exact
+            total_monthly_net += monthly_net_exact
 
         results.append({
             "code": code,
@@ -460,6 +465,10 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             "value": value,
             "div_yield": round(div_yield * 100, 2) if div_yield is not None else None,
             "yield_source": yield_source,
+            "tax_category": tax_category,
+            "dividend_checked_at": dividend_checked_at,
+            "annual_dividend": round(monthly_exact * 12) if monthly is not None else None,
+            "annual_dividend_net": round(monthly_net_exact * 12) if monthly_net is not None else None,
             "tax_rate": round(effective_tax * 100, 3),
             "nisa": nisa_status == "all",
             "nisa_status": nisa_status,
@@ -468,11 +477,13 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             "monthly_dividend_net": monthly_net,
         })
 
-    total_monthly_net = sum(
-        r["monthly_dividend_net"] for r in results if r["monthly_dividend_net"] is not None
-    )
     annual_dividend = round(total_monthly * 12, 0)
+    fx_rate = fetch_usd_jpy_rate()
     return {
+        "calculated_at": datetime.now(timezone.utc).isoformat(),
+        "holdings_as_of": None,
+        "missing_yield_count": sum(r["div_yield"] is None for r in results),
+        "fx_fetched_at": datetime.fromtimestamp(_fx_cache["ts"], timezone.utc).isoformat() if _fx_cache["ts"] else None,
         "holdings": results,
         "total_value": total_value,
         "total_monthly_dividend": round(total_monthly, 0),
@@ -482,7 +493,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         "portfolio_dividend_yield": round(annual_dividend / total_value * 100, 2) if total_value else None,
         "yield_coverage_value": round(covered_value, 0),
         "yield_coverage_pct": round(covered_value / total_value * 100, 1) if total_value else 0.0,
-        "usd_jpy_rate": fetch_usd_jpy_rate(),
+        "usd_jpy_rate": fx_rate,
     }
 
 
