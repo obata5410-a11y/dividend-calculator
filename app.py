@@ -17,6 +17,7 @@ import unicodedata
 import time
 from datetime import datetime, timezone, timedelta
 from collections import Counter
+from notion_history import router as history_router
 
 _HTTP = requests.Session()
 _HTTP.headers.update({
@@ -28,6 +29,7 @@ _HTTP.headers.update({
 _sessions: dict[str, dict] = {}
 
 app = FastAPI()
+app.include_router(history_router)
 
 app.add_middleware(
     CORSMiddleware,

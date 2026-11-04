@@ -20,3 +20,21 @@ node tests/test_history.cjs
 node tests/test_extension.cjs
 node tests/test_render.cjs
 ```
+
+
+## Notionを正本として使う
+
+Notionの認証トークンはサーバー環境変数にのみ保存します。ブラウザーへ渡しません。履歴APIの読み取り・書き込みには、別の32文字以上のランダムな履歴用アクセスキーが必要です。未設定時は履歴APIを閉じたままにし、接続設定待ちを表示します。
+
+Renderの対象サービスのEnvironmentへ、`.env.example` の3項目を設定します。
+
+1. Notionの専用internal connectionを作成し、履歴台帳だけに閲覧・追加の権限を付与する。
+2. `NOTION_TOKEN` に専用接続のシークレット、`NOTION_DATA_SOURCE_ID` に台帳のデータソースID（database IDとは異なる）を設定する。
+3. `DIVIDEND_HISTORY_ACCESS_KEY` に十分長いランダム値を設定する。生成例：`python -c "import secrets; print(secrets.token_urlsafe(32))"`。生成値はチャット・Git・ログへ貼り付けない。
+4. Renderを再デプロイし、結果画面で履歴用アクセスキーを入力して接続する。Notionのトークンを結果画面へ入力しない。
+
+同じデータの再送はSnapshotKeyで照合して登録を省略します。数値が変わった場合は新しい行を追加し、旧版を保持します。表示では日付・範囲ごとに最新計算の版を選びます。接続時に今回の結果を保存し、Notionから読み戻して確認します。既存のブラウザー履歴の一括移行は専用ボタンで実行します。変更履歴を消すAPIは設けません。
+
+Notion応答不明時は書き込みを自動再送せず、同期未完了を表示します。端末の履歴は保持し、再接続時にNotionの既存行を照合します。ページネーションが途中で失敗した場合は不完全な履歴を成功扱いしません。
+
+この会話用のNotion接続と、Renderが使う専用接続は別です。環境変数設定と実サービスでの読み書き確認が完了するまでは、自動同期を有効化済みと報告しません。

@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY notion_history.py .
 COPY static/ static/
 COPY nisa_codes.txt .
 COPY ticker_aliases.txt .
