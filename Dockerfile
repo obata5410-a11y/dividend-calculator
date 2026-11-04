@@ -10,6 +10,7 @@ COPY static/ static/
 COPY nisa_codes.txt .
 COPY ticker_aliases.txt .
 COPY yield_overrides.txt .
+COPY dividend_evidence.json .
 
 EXPOSE 8000
 

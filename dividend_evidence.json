@@ -1,0 +1,122 @@
+[
+  {
+    "key": "2516",
+    "name": "東証グロース250ETF",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026年7月期（2025-07-09〜2026-07-08）分配金0円",
+    "source_url": "https://www.simplexasset.com/etf/docs/2516Briefannounce.pdf",
+    "publisher": "シンプレクス・アセット・マネジメント"
+  },
+  {
+    "key": "7201",
+    "name": "日産自動車",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2025年度（2026年3月期）年間配当0円。将来予想ではなく実績",
+    "source_url": "https://www.nissan-global.com/JP/IR/STOCK/DIVIDEND/",
+    "publisher": "日産自動車"
+  },
+  {
+    "key": "GLD",
+    "name": "SPDR Gold Shares",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "金現物保有商品。運用会社が収益を生まないと説明",
+    "source_url": "https://www.ssga.com/us/en/individual/etfs/spdr-gold-shares-gld",
+    "publisher": "State Street"
+  },
+  {
+    "key": "eMAXIS Slim 全世界株式(オール・カントリー)",
+    "name": "eMAXIS Slim 全世界株式(オール・カントリー)",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-04-27決算分配金0円／年1回決算",
+    "source_url": "https://site0.sbisec.co.jp/marble/fund/history/distribution.do?fund_sec_code=0331418A",
+    "publisher": "SBI証券（ウエルスアドバイザー提供実績）"
+  },
+  {
+    "key": "eMAXIS Slim 国内株式(TOPIX)",
+    "name": "eMAXIS Slim 国内株式(TOPIX)",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-04-27決算分配金0円／年1回決算",
+    "source_url": "https://fs.bk.mufg.jp/webasp/mufg/fund/detail/m00355420.html",
+    "publisher": "三菱UFJ銀行（販売会社の分配実績）"
+  },
+  {
+    "key": "SBI・iシェアーズ・インド株式インデックス・ファンド",
+    "name": "SBI・iシェアーズ・インド株式インデックス・ファンド",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-09-18決算分配金0円／年1回決算",
+    "source_url": "https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_2023092202.html",
+    "publisher": "SBIアセットマネジメント（ウエルスアドバイザー経由）"
+  },
+  {
+    "key": "iFreeNEXT FANG+インデックス",
+    "name": "iFreeNEXT FANG+インデックス",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-01-29",
+    "basis": "2026-01-30決算分配金0円／年1回決算。毎月決算型とは別商品",
+    "source_url": "https://www.daiwa-am.co.jp/funds/detail/3346/detail_top.html",
+    "publisher": "大和アセットマネジメント"
+  },
+  {
+    "key": "SBI・V・S&P500インデックス・ファンド",
+    "name": "SBI・V・S&P500インデックス・ファンド",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-09-14決算分配金0円／年1回決算",
+    "source_url": "https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_2019092601.html",
+    "publisher": "SBIアセットマネジメント（ウエルスアドバイザー経由）"
+  },
+  {
+    "key": "auAMレバレッジ NASDAQ100",
+    "name": "auAMレバレッジ NASDAQ100",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "第4期（2025-07-29〜2026-07-27）分配金0円",
+    "source_url": "https://www.kddi-am.com/wp-content/themes/aufunds/pdf/4001/operation_report.pdf",
+    "publisher": "auアセットマネジメント"
+  },
+  {
+    "key": "楽天・全世界株式インデックス・ファンド(楽天・VT)",
+    "name": "楽天・全世界株式インデックス・ファンド",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-09-30月報：2026年7月決算0円、設定来分配金0円",
+    "source_url": "https://www.rakuten-toushin.co.jp/fund/nav/rivge/pdf/rivge_M202609.pdf",
+    "publisher": "楽天投信投資顧問"
+  },
+  {
+    "key": "eMAXIS Slim 米国株式(S&P500)",
+    "name": "eMAXIS Slim 米国株式(S&P500)",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-04-27決算分配金0円／年1回決算",
+    "source_url": "https://fs.bk.mufg.jp/webasp/mufg/fund/detail/m00355320.html",
+    "publisher": "三菱UFJ銀行（販売会社の分配実績）"
+  },
+  {
+    "key": "iFreeレバレッジ NASDAQ100",
+    "name": "iFreeレバレッジ NASDAQ100",
+    "div_yield": 0.0,
+    "checked_on": "2026-11-05",
+    "review_after": "2027-02-03",
+    "basis": "2026-10-19決算分配金0円／年1回決算",
+    "source_url": "https://site0.sbisec.co.jp/marble/fund/history/distribution.do?fund_sec_code=0431218A",
+    "publisher": "SBI証券（ウエルスアドバイザー提供実績）"
+  }
+]

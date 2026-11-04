@@ -1,4 +1,5 @@
 import unittest
+from datetime import date
 from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
@@ -138,6 +139,54 @@ class ProcessHoldingsTests(unittest.TestCase):
         self.assertIsNone(missing["annual_dividend"])
         self.assertEqual(result["yield_coverage_pct"], 50)
         self.assertEqual(result["missing_yield_count"], 1)
+
+
+class DividendEvidenceTests(unittest.TestCase):
+    run_process = ProcessHoldingsTests.run_process
+    def setUp(self):
+        original = app.find_dividend_evidence
+        self.frozen = patch.object(app, "find_dividend_evidence",
+            side_effect=lambda *args, **kwargs: original(*args, today=date(2026, 11, 5)))
+        self.frozen.start()
+        self.addCleanup(self.frozen.stop)
+
+    def test_all_twelve_missing_holdings_have_sourced_zero_history(self):
+        records = app.load_dividend_evidence()
+        self.assertEqual(len(records), 12)
+        items = [app.HoldingItem(name=r["key"], code=r["key"] if r["key"] in ("2516", "7201", "GLD") else "", value=10000) for r in records.values()]
+        result = self.run_process(items)
+        self.assertEqual(result["missing_yield_count"], 0)
+        self.assertEqual(result["confirmed_zero_count"], 12)
+        self.assertEqual(result["yield_coverage_pct"], 100)
+        self.assertEqual(result["total_annual_dividend_net"], 0)
+        for h in result["holdings"]:
+            self.assertEqual(h["yield_source"], "verified_history")
+            self.assertTrue(h["dividend_evidence"]["source_url"].startswith("https://"))
+
+    def test_new_positive_market_dividend_takes_priority(self):
+        result = self.run_process([app.HoldingItem(name="日産", code="7201", value=10000)], yields={"7201.T": 0.02})
+        h = result["holdings"][0]
+        self.assertEqual(h["div_yield"], 2)
+        self.assertEqual(h["yield_source"], "market")
+        self.assertIsNone(h["dividend_evidence"])
+
+    def test_monthly_distribution_variant_and_unknown_code_remain_missing(self):
+        result = self.run_process([
+            app.HoldingItem(name="iFreeNEXT FANG+インデックス(毎月決算/予想分配金提示型)", value=10000),
+            app.HoldingItem(name="iFreeNEXT FANG+インデックス", code="UNKNOWN", value=10000),
+        ])
+        self.assertEqual(result["missing_yield_count"], 2)
+
+    def test_fullwidth_punctuation_matches_exact_fund(self):
+        result = self.run_process([app.HoldingItem(name="ｅＭＡＸＩＳ Ｓｌｉｍ 全世界株式（オール・カントリー）", value=10000)])
+        self.assertEqual(result["confirmed_zero_count"], 1)
+
+    def test_expired_and_future_dated_evidence_is_not_used(self):
+        # Access original function because setUp freezes the date only for integration tests.
+        original = self.frozen.temp_original
+        records = app.load_dividend_evidence()
+        self.assertIsNone(original("2516", "2516.T", "", records, today=date(2027, 2, 3)))
+        self.assertIsNone(original("2516", "2516.T", "", records, today=date(2026, 11, 4)))
 
 
 class ResultTemplateTests(unittest.TestCase):

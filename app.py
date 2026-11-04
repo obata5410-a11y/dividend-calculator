@@ -11,6 +11,8 @@ import io
 import os
 import re
 import uuid
+import json
+import unicodedata
 import time
 from datetime import datetime, timezone
 from collections import Counter
@@ -231,7 +233,7 @@ def load_nisa_lot_counts() -> Counter[str]:
 
 
 def _normalize_config_key(value: str) -> str:
-    return re.sub(r"\s+", " ", str(value).strip()).upper()
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", str(value)).strip()).upper()
 
 
 def _load_key_value_file(path: str) -> dict[str, str]:
@@ -289,6 +291,37 @@ def get_dividend_yield(
         if key and key in overrides:
             return overrides[key], "override"
     return fetched_yield, "market" if fetched_yield is not None else "unavailable"
+
+
+def load_dividend_evidence() -> dict[str, dict]:
+    """手動確認済みの実績を読む。期限切れや不正な資料は0%に置き換えない。"""
+    path = os.path.join(os.path.dirname(__file__), "dividend_evidence.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            records = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {_normalize_config_key(r["key"]): r for r in records}
+
+
+def find_dividend_evidence(code: str, ticker: str, name: str, records: dict,
+                           today=None) -> dict | None:
+    today = today or datetime.now(timezone.utc).date()
+    # コードがある場合は銘柄名にフォールバックしない（別商品との誤照合を防止）。
+    candidates = (code, ticker) if code else (name,)
+    for candidate in candidates:
+        record = records.get(_normalize_config_key(_normalize_nisa_code(candidate)))
+        if not record:
+            continue
+        try:
+            checked = datetime.fromisoformat(record["checked_on"]).date()
+            expiry = datetime.fromisoformat(record["review_after"]).date()
+            if (checked <= today < expiry and record["div_yield"] == 0
+                    and record["source_url"].startswith("https://")):
+                return record
+        except (ValueError, KeyError, TypeError):
+            continue
+    return None
 
 
 def calc_after_tax(gross: float | None, rate: float) -> float | None:
@@ -376,6 +409,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
     nisa_lots = load_nisa_lot_counts()
     aliases = load_ticker_aliases()
     yield_overrides = load_yield_overrides()
+    evidence_records = load_dividend_evidence()
     merged: dict[str, dict] = {}
 
     for item in items:
@@ -425,6 +459,12 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             code, ticker, name, ticker_data.get("div_yield"), yield_overrides
         )
 
+        evidence = find_dividend_evidence(code, ticker, group["name"], evidence_records)
+        if div_yield is None and evidence is not None:
+            div_yield = evidence["div_yield"]
+            yield_source = "verified_history"
+        else:
+            evidence = None
         tax_category = "JP" if not ticker or ticker.endswith(".T") else "US"
         dividend_checked_at = datetime.now(timezone.utc).isoformat()
         if div_yield is not None:
@@ -465,6 +505,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             "value": value,
             "div_yield": round(div_yield * 100, 2) if div_yield is not None else None,
             "yield_source": yield_source,
+            "dividend_evidence": evidence,
+            "dividend_status": "unavailable" if div_yield is None else "zero" if div_yield == 0 else "paying",
             "tax_category": tax_category,
             "dividend_checked_at": dividend_checked_at,
             "annual_dividend": round(monthly_exact * 12) if monthly is not None else None,
@@ -482,6 +524,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
     return {
         "calculated_at": datetime.now(timezone.utc).isoformat(),
         "holdings_as_of": None,
+        "confirmed_zero_count": sum(r["dividend_status"] == "zero" for r in results),
         "missing_yield_count": sum(r["div_yield"] is None for r in results),
         "fx_fetched_at": datetime.fromtimestamp(_fx_cache["ts"], timezone.utc).isoformat() if _fx_cache["ts"] else None,
         "holdings": results,
@@ -490,7 +533,7 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         "total_annual_dividend": annual_dividend,
         "total_monthly_dividend_net": round(total_monthly_net, 0),
         "total_annual_dividend_net": round(total_monthly_net * 12, 0),
-        "portfolio_dividend_yield": round(annual_dividend / total_value * 100, 2) if total_value else None,
+        "portfolio_dividend_yield": round(total_monthly * 12 / total_value * 100, 2) if total_value else None,
         "yield_coverage_value": round(covered_value, 0),
         "yield_coverage_pct": round(covered_value / total_value * 100, 1) if total_value else 0.0,
         "usd_jpy_rate": fx_rate,
