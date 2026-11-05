@@ -20,7 +20,8 @@ function extractHoldings() {
       (h) => h.includes("コード") || h.includes("証券コード")
     );
 
-    const accountIdx = headers.findIndex(h => /口座|保有金融機関/.test(h));
+    const typeIdx = headers.findIndex(h => /口座区分|預り区分|口座種別/.test(h));
+    const accountIdx = typeIdx >= 0 ? typeIdx : headers.findIndex(h => /口座|保有金融機関/.test(h));
     const quantityIdx = headers.findIndex(h => /保有数|数量/.test(h));
     for (const row of table.querySelectorAll("tbody tr")) {
       if (row.closest("table") !== table) continue;

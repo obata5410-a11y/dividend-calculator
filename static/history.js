@@ -48,7 +48,7 @@
     return clean({date:jstDay(data.calculated_at),scope:'simulator',total_value:data.total_value,
       annual_net:data.total_annual_dividend_net,annual_gross:data.total_annual_dividend,
       coverage:data.yield_coverage_pct,source:'計算日時の試算を保存（残高基準日は元データによる）',
-      calculated_at:data.calculated_at,method:'dividend-v3'});
+      calculated_at:data.calculated_at,method:data.calculation_version || 'dividend-v3'});
   }
   const api={jstDay,validRecord,merge,targetDay,baseline,change,snapshot};
   if(typeof module!=='undefined') module.exports=api;

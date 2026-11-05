@@ -231,6 +231,8 @@
     return value ? escapeHtml(new Date(value).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo"})) + " JST" : "不明";
   }
   function evidenceDescription(h) {
+    const dist = h.distribution_evidence;
+    if (dist) return `${dist.publisher}：${dist.period_start}〜${dist.period_end}、${dist.unit}口あたり${dist.annual_distribution}円／再確認期限 ${dist.review_after}`;
     const e = h.dividend_evidence;
     if (e) return `${e.publisher}：${e.basis}／資料確認日 ${e.checked_on}／再確認期限 ${e.review_after}`;
     if (h.yield_source === 'override') return '設定ファイルの過去実績利回り（設定日不明）';
@@ -240,7 +242,7 @@
       : 'Yahoo Finance 過去1年実績';
   }
   function evidenceLink(h) {
-    const url = h.dividend_evidence?.source_url;
+    const url = h.dividend_evidence?.source_url || h.distribution_evidence?.source_url;
     return url && url.startsWith('https://')
       ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">根拠資料</a>` : '';
   }
@@ -408,7 +410,9 @@
     const rows = data.holdings.map(h => {
       const isJP = h.tax_category ? h.tax_category === "JP" : !h.ticker || h.ticker.endsWith(".T");
       const taxBadge = h.monthly_dividend != null
-        ? (h.nisa_status === 'partial'
+        ? (h.nisa_status === 'unknown'
+            ? `<span class="badge-partial">口座区分不明あり・不明分は通常課税を仮定（実効 ${h.tax_rate}%）</span>`
+            : h.nisa_status === 'partial'
             ? `<span class="badge-partial">一部NISA 実効 ${h.tax_rate}%</span>`
             : h.nisa_status === 'all'
               ? `<span class="badge-nisa">${isJP ? 'NISA 非課税' : 'NISA 米国源泉10%'}</span>`
@@ -421,16 +425,19 @@
           <td>${escapeHtml(h.name)}</td>
           <td class="num">${fmt(h.value)}</td>
           <td class="num" title="${escapeHtml(evidenceDescription(h))}">${h.div_yield != null
-            ? `<span class="badge-ok">${h.div_yield === 0 ? '0%（無配・無分配実績）' : h.div_yield + ' %'}</span>${h.dividend_evidence ? evidenceLink(h) : ''}`
+            ? `<span class="badge-ok">${h.div_yield === 0 ? '0%（無配・無分配実績）' : h.div_yield + ' %'}</span>${h.dividend_evidence || h.distribution_evidence ? evidenceLink(h) : ''}`
             : '<span class="badge-none">未取得（集計対象外）</span>'}</td>
           <td class="num">${h.monthly_dividend != null ? fmt(h.monthly_dividend) : '—'}</td>
           <td class="num net-col">${h.monthly_dividend_net != null ? fmt(h.monthly_dividend_net) : '—'}</td>
-          <td>${taxBadge}<div class="sub">${h.calculation_method === "quantity_ttm" ? "数量×過去1年配当" : h.div_yield == null ? "" : "評価額×利回り（概算）"}</div></td>
+          <td>${taxBadge}<div class="sub">${h.calculation_method === "fund_quantity_ttm" ? "保有口数÷1万口×確認期間の分配金" : h.calculation_method === "quantity_ttm" ? "数量×過去1年配当" : h.div_yield == null ? "" : "評価額×利回り（概算）"}</div></td>
         </tr>`;
     }).join('');
 
     document.getElementById('app').innerHTML = `
       <div class="note">計算日時：${dateLabel(data.calculated_at)}<br>
+        ${data.calculation_version !== 'dividend-v4' ? '旧計算方式の保存結果です。修正版で確認するには保有データを再取得してください。<br>' : ''}
+        ${data.unknown_account_count ? `口座区分不明：${data.unknown_account_count}保有行。不明分は通常課税を仮定した手取概算です。NISAの推測割当は行いません。<br>` : ''}
+        ${data.holdings.some(h => h.yield_source === 'fx_unavailable') ? '為替を取得できない外貨配当は集計対象外です。古い為替での補完はしません。<br>' : ''}
         保有残高の基準日時：${dateLabel(data.holdings_as_of)}（元データで確認してください）<br>
         ${data.holdings.some(h => h.div_yield == null) ? `未取得：${data.holdings.filter(h => h.div_yield == null).length}銘柄。未取得分の配当は集計対象外（0円と確定した意味ではありません）。` : '保有銘柄の利回り確認率：100%（確認済み0円実績の補完を含みます）'}<br>
         確認済み0円：${data.confirmed_zero_count ?? data.holdings.filter(h => h.div_yield === 0).length}銘柄（無配・無分配の実績。将来の0円を保証しません）。<br>

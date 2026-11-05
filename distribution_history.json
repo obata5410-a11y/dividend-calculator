@@ -1,0 +1,19 @@
+[
+  {
+    "name": "SBI日本高配当株式(分配)ファンド(年4回決算型)",
+    "unit": 10000,
+    "annual_distribution": 570,
+    "period_start": "2025-11-06",
+    "period_end": "2026-11-05",
+    "checked_on": "2026-11-06",
+    "review_after": "2027-01-12",
+    "source_url": "https://apl.wealthadvisor.jp/webasp/sbi_am/sp/basic/sa_2023121201.html",
+    "publisher": "SBIアセットマネジメント",
+    "payments": [
+      {"date": "2026-01-13", "amount": 140},
+      {"date": "2026-04-10", "amount": 140},
+      {"date": "2026-07-10", "amount": 140},
+      {"date": "2026-10-13", "amount": 150}
+    ]
+  }
+]

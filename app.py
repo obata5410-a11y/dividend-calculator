@@ -43,7 +43,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "calculation_version": "dividend-v4", "commit": os.environ.get("RENDER_GIT_COMMIT")}
 
 
 @app.get("/")
@@ -151,12 +151,13 @@ def fetch_usd_jpy_rate() -> float | None:
             chart = r.json().get("chart", {}).get("result", [])
             if chart:
                 price = chart[0].get("meta", {}).get("regularMarketPrice")
-                if price:
+                if isinstance(price, (int, float)) and math.isfinite(price) and price > 0:
                     _fx_cache["rate"] = price
                     _fx_cache["ts"] = now
+                    return price
     except Exception:
         pass
-    return _fx_cache["rate"]
+    return None
 
 
 def fetch_ticker_data(ticker: str) -> dict:
@@ -333,6 +334,29 @@ def calc_after_tax(gross: float | None, rate: float) -> float | None:
     return round(gross * (1 - rate), 0) if gross is not None else None
 
 
+def account_tax_status(account: str) -> str:
+    """Institution names and absent account types are not evidence of tax status."""
+    account = _normalize_config_key(account)
+    if re.search(r"NISA|非課税", account):
+        return "nisa"
+    if re.search(r"特定|一般|課税|TAXABLE", account):
+        return "taxable"
+    return "unknown"
+
+
+def load_distribution_history() -> dict:
+    path = os.path.join(os.path.dirname(__file__), "distribution_history.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            records = json.load(f)
+        today = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=9))).date()
+        return {_normalize_config_key(r["name"]): r for r in records
+                if datetime.fromisoformat(r["checked_on"]).date() <= today
+                < datetime.fromisoformat(r["review_after"]).date()}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
 @app.post("/api/calculate")
 async def calculate(file: UploadFile = File(...)):
     content = await file.read()
@@ -423,27 +447,20 @@ class HoldingsPayload(BaseModel):
 
 
 def process_holdings(items: list[HoldingItem]) -> dict:
-    # 各保有行を先にNISA判定し、その後に同一銘柄を合算する。
-    # accountが渡された場合は口座名を優先し、旧拡張機能ではnisa_codes.txtの
-    # 記載件数分だけ先頭の一致行をNISAとして消費する。
-    nisa_lots = load_nisa_lot_counts()
+    # 口座区分は明示情報のみ使用。銘柄別の旧NISAリスト・行順は使用しない。
+    # 不明区分の手取概算には通常課税を仮定し、結果に必ず明示する。
     aliases = load_ticker_aliases()
     yield_overrides = load_yield_overrides()
     evidence_records = load_dividend_evidence()
+    distributions = load_distribution_history()
     merged: dict[str, dict] = {}
 
     for item in items:
         if item.value <= 0:
             continue
         code, ticker = resolve_ticker(item.code, item.name, aliases)
-        nisa_key = _normalize_nisa_code(code) if code else _normalize_config_key(item.name)
-        has_explicit_account = bool(item.account.strip())
-        if has_explicit_account:
-            nisa = "NISA" in item.account.upper()
-        else:
-            nisa = bool(nisa_key and nisa_lots[nisa_key] > 0)
-            if nisa:
-                nisa_lots[nisa_key] -= 1
+        account_status = account_tax_status(item.account)
+        nisa = account_status == "nisa"
 
         key = ticker or _normalize_config_key(item.name)
         group = merged.setdefault(key, {
@@ -456,7 +473,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             group["code"] = code
         if item.name and item.name != item.code:
             group["name"] = item.name
-        group["lots"].append({"value": item.value, "nisa": nisa, "quantity": item.quantity})
+        group["lots"].append({"value": item.value, "nisa": nisa, "quantity": item.quantity,
+                              "account_status": account_status})
 
     results = []
     total_value = 0.0
@@ -479,6 +497,16 @@ def process_holdings(items: list[HoldingItem]) -> dict:
         div_yield, yield_source = get_dividend_yield(
             code, ticker, name, ticker_data.get("div_yield"), yield_overrides
         )
+
+        distribution = distributions.get(_normalize_config_key(group["name"])) if not ticker else None
+        distribution_gross = None
+        if distribution and all(lot["quantity"] is not None for lot in group["lots"]):
+            distribution_gross = sum(lot["quantity"] for lot in group["lots"]) * distribution["annual_distribution"] / distribution["unit"]
+            div_yield = distribution_gross / value
+            yield_source = "distribution_history"
+        if (ticker_data.get("currency") == "USD" and fx_rate is None
+                and ticker_data.get("annual_dividend_per_share") is not None):
+            div_yield, yield_source = None, "fx_unavailable"
 
         evidence = find_dividend_evidence(code, ticker, group["name"], evidence_records)
         if div_yield is None and evidence is not None:
@@ -505,19 +533,25 @@ def process_holdings(items: list[HoldingItem]) -> dict:
                     rate = nisa_tax_rate_for(ticker) if ticker else 0.0
                 else:
                     rate = tax_rate_for(ticker) if ticker else TAX_JP
-                lot_gross = (lot["quantity"] * per_share * conversion / 12 if use_quantity
+                lot_gross = (lot["quantity"] * distribution["annual_distribution"] / distribution["unit"] / 12 if distribution_gross is not None
+                             else lot["quantity"] * per_share * conversion / 12 if use_quantity
                              else lot["value"] * div_yield / 12)
                 monthly_exact += lot_gross
                 monthly_net_exact += lot_gross * (1 - rate)
             monthly = round(monthly_exact, 0)
             monthly_net = round(monthly_net_exact, 0)
             covered_value += value
+            if monthly_exact:
+                effective_tax = 1 - monthly_net_exact / monthly_exact
         else:
             monthly = None
             monthly_net = None
 
         nisa_count = sum(1 for lot in group["lots"] if lot["nisa"])
-        if nisa_count == 0:
+        unknown_count = sum(lot["account_status"] == "unknown" for lot in group["lots"])
+        if unknown_count:
+            nisa_status = "unknown"
+        elif nisa_count == 0:
             nisa_status = "none"
         elif nisa_count == len(group["lots"]):
             nisa_status = "all"
@@ -535,10 +569,13 @@ def process_holdings(items: list[HoldingItem]) -> dict:
             "name": name,
             "value": value,
             "div_yield": round(div_yield * 100, 2) if div_yield is not None else None,
-            "calculation_method": "unavailable" if div_yield is None else "quantity_ttm" if use_quantity else "valuation_yield",
+            "calculation_method": "unavailable" if div_yield is None else "fund_quantity_ttm" if distribution_gross is not None else "quantity_ttm" if use_quantity else "valuation_yield",
             "quantity": sum(lot["quantity"] for lot in group["lots"]) if all(lot["quantity"] is not None for lot in group["lots"]) else None,
             "yield_source": yield_source,
             "dividend_evidence": evidence,
+            "distribution_evidence": distribution if distribution_gross is not None else None,
+            "unknown_account_count": unknown_count,
+            "tax_assumption": "unknown_as_taxable" if unknown_count else None,
             "dividend_status": "unavailable" if div_yield is None else "zero" if div_yield == 0 else "paying",
             "tax_category": tax_category,
             "dividend_checked_at": dividend_checked_at,
@@ -554,6 +591,8 @@ def process_holdings(items: list[HoldingItem]) -> dict:
 
     annual_dividend = round(total_monthly * 12, 0)
     return {
+        "calculation_version": "dividend-v4",
+        "unknown_account_count": sum(r["unknown_account_count"] for r in results),
         "calculated_at": datetime.now(timezone.utc).isoformat(),
         "holdings_as_of": None,
         "confirmed_zero_count": sum(r["dividend_status"] == "zero" for r in results),

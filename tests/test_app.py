@@ -31,8 +31,8 @@ class ProcessHoldingsTests(unittest.TestCase):
     def test_mixed_nisa_and_taxable_lots_use_effective_tax_rate(self):
         result = self.run_process(
             [
-                app.HoldingItem(name="JT", code="2914", value=100_000),
-                app.HoldingItem(name="JT", code="2914", value=200_000),
+                app.HoldingItem(name="JT", code="2914", value=100_000, account="NISA"),
+                app.HoldingItem(name="JT", code="2914", value=200_000, account="特定"),
             ],
             nisa={"2914": 1},
             yields={"2914.T": 0.12},
@@ -49,7 +49,7 @@ class ProcessHoldingsTests(unittest.TestCase):
 
     def test_us_nisa_keeps_ten_percent_source_tax(self):
         result = self.run_process(
-            [app.HoldingItem(name="SHY", code="SHY", value=100_000)],
+            [app.HoldingItem(name="SHY", code="SHY", value=100_000, account="NISA")],
             nisa={"SHY": 1},
             yields={"SHY": 0.12},
         )
@@ -68,7 +68,8 @@ class ProcessHoldingsTests(unittest.TestCase):
         )
 
         holding = result["holdings"][0]
-        self.assertEqual(holding["nisa_status"], "none")
+        self.assertEqual(holding["nisa_status"], "unknown")
+        self.assertEqual(holding["tax_assumption"], "unknown_as_taxable")
         self.assertEqual(holding["tax_rate"], 20.315)
 
     def test_alias_and_yield_override_cover_code_less_holdings(self):
@@ -98,8 +99,8 @@ class ProcessHoldingsTests(unittest.TestCase):
         name = "SBI日本高配当株式(分配)ファンド(年4回決算型)"
         result = self.run_process(
             [
-                app.HoldingItem(name=name, value=10_000),
-                app.HoldingItem(name=name, value=20_000),
+                app.HoldingItem(name=name, value=10_000, account="NISA"),
+                app.HoldingItem(name=name, value=20_000, account="NISA"),
             ],
             nisa={name.upper(): 2},
             overrides={name.upper(): 0.04},

@@ -13,3 +13,13 @@ assert(nodes.get('app').innerHTML.includes('数量×過去1年配当'));
 assert.equal(JSON.parse(storage.get('dividend-history-v1')).length,3);
 ctx.switchBarMode('annual');assert.equal(ctx.window._barChart.data.datasets[0].data[0],4800);
 console.log('Result rendering, automatic history save, month/year amounts and percentages, annual chart toggle PASS');
+ctx.render({calculation_version:'dividend-v4',calculated_at:'2026-11-05T16:00:00Z',unknown_account_count:1,
+holdings:[{name:'FUND',value:170411,div_yield:3.36,annual_dividend:5722,annual_dividend_net:4560,
+monthly_dividend:477,monthly_dividend_net:380,tax_rate:20.315,nisa_status:'unknown',calculation_method:'fund_quantity_ttm',
+distribution_evidence:{publisher:'Issuer',period_start:'2025-11-06',period_end:'2026-11-05',unit:10000,annual_distribution:570,review_after:'2027-01-12',source_url:'https://example.com/distributions'}}],
+total_value:170411,total_annual_dividend:5722,total_annual_dividend_net:4560,total_monthly_dividend:477,total_monthly_dividend_net:380,yield_coverage_pct:100});
+assert(nodes.get('app').innerHTML.includes('NISAの推測割当は行いません'));
+assert(nodes.get('app').innerHTML.includes('口座区分不明あり'));
+assert(nodes.get('app').innerHTML.includes('保有口数÷1万口'));
+assert(nodes.get('app').innerHTML.includes('https://example.com/distributions'));
+assert.equal(JSON.parse(storage.get('dividend-history-v1')).at(-1).method,'dividend-v4');
